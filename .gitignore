@@ -1,0 +1,6 @@
+# Sensible Terraform Daten
+*.tfvars
+*.auto.tfvars
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
