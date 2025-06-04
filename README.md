@@ -55,21 +55,21 @@ terraform destroy
 Es sollen Apllikationen auf dieser Immutable Infrastructure deployed werden. Dafür werden Docker-Contaienr über Ansible auf der Instanz Deployed. 
 Hinzufügen einer automatischen Installation aller Systeme und anforderungen per Playbook auf der Open-Stack Infrastruktur.  
 Das Deployment soll weiterhin nur über Terraform erfolgen.  
+
+Über ein Ansible Playbook wird die Installation des Node.js Servers automatisiert.  
+Die Inventory.ini Datei wird automatisch von Terrform beschrieben, um die Verbindung per ssh zu ermöglichen.
   
-Automatisches Deployment mit ```null_resource```  
+Die Installation der Open-Stack Instanz über Terraform sowie die Installation des Node.js Servers werden von einer Makefile gesteuert.
 
-```h
-resource "null_resource" "ansible" {
-  triggers = {
-    instance_ip = aws_instance.web.public_ip
-  }
-
-  provisioner "local-exec" {
-    command = <<EOT
-echo "[web]" > inventory.ini
-echo "${aws_instance.web.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/my-key.pem" >> inventory.ini
-ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory.ini ansible/playbook.yml
-EOT
-  }
-}
+Automatisches Deployment mit einer Makefile:   
+**Deployment:**  
 ```
+make deploy
+``` 
+Die Instanz sowie die Applikation werden automatisch Deployed.  
+
+**Delete:**
+```
+make destroy
+```  
+Die Insatz wird gelöscht.
