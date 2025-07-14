@@ -12,7 +12,7 @@ def subtract_numbers(a, b):
 
 @app.route('/')
 def hello():
-    return "Welcome to the Calculator API"
+    return "Welcome to the Calculator API, this is the newest Version.\nNothing changed, just this text..."
 
 # Neue API-Route zum Addieren von zwei Zahlen
 @app.route('/add', methods=['GET'])

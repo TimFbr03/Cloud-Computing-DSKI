@@ -27,13 +27,13 @@
 
 - name: Pull Docker image from GHCR
   community.docker.docker_image:
-    name: ghcr.io/timfbr03/cloud-computing-dski:1.0.0
+    name: ghcr.io/timfbr03/cloud-computing-dski:v1.0.0
     source: pull
 
 - name: Run Docker container with port forwarding
   community.docker.docker_container:
     name: flask-api
-    image: ghcr.io/timfbr03/cloud-computing-dski:1.0.0
+    image: ghcr.io/timfbr03/cloud-computing-dski:v1.0.0
     state: started
     restart_policy: always
     ports:
