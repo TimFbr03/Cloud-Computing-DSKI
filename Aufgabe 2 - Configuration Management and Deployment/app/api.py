@@ -7,9 +7,12 @@ app = Flask(__name__)
 def add_numbers(a, b):
     return a + b
 
+def subtract_numbers(a, b):
+    return a - b
+
 @app.route('/')
 def hello():
-    return "Welcome to the Kubernetes Test API"
+    return "Welcome to the Calculator API"
 
 # Neue API-Route zum Addieren von zwei Zahlen
 @app.route('/add', methods=['GET'])
@@ -25,7 +28,7 @@ def add():
             })
     except (TypeError, ValueError):
         return jsonify({'error': 'Bitte gueltige Zahlen angeben, z.B. /add?a=3&b=4'}), 400
-
+    
 @app.route('/sub', methods=['GET'])
 def sub():
     try:
