@@ -26,5 +26,19 @@ def add():
     except (TypeError, ValueError):
         return jsonify({'error': 'Bitte gueltige Zahlen angeben, z.B. /add?a=3&b=4'}), 400
 
+@app.route('/sub', methods=['GET'])
+def sub():
+    try:
+        a = float(request.args.get('a'))
+        b = float(request.args.get('b')) 
+        result = subtract_numbers(a, b)
+        return jsonify({
+            'a': a,
+            'b': b,
+            'result': result
+            })
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Bitte gueltige Zahlen angeben, z.B. /subtract?a=3&b=4'}), 400
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
