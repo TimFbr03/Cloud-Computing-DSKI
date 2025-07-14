@@ -5,50 +5,25 @@
     update_cache: yes
   notify: Ensure Docker service running
 
-- name: Install Python pip and Docker SDK for Python (via apt)
-  ansible.builtin.apt:
-    name: ['python3-pip', 'python3-docker']
-    state: present
-    update_cache: yes
-
 - name: Ensure Docker is running and enabled
   ansible.builtin.service:
     name: docker
     state: started
     enabled: yes
 
-- name: Clone the Flask app from external GitHub repo
-  ansible.builtin.git:
-    repo: 'https://github.com/TimFbr03/cloud_computing_api_calculator.git'
-    dest: /opt/flask-app
-    version: new-stable-v2.0.0
-    force: yes
-
-- name: Ensure correct permissions on cloned app directory
-  ansible.builtin.file:
-    path: /opt/flask-app
-    state: directory
-    mode: '0755'
-    recurse: yes
-    owner: root
-    group: root
-
-- name: Build Docker image 'flask-api'
+- name: Pull Docker image from GHCR
   community.docker.docker_image:
-    name: flask-api
-    build:
-      path: /opt/flask-app/src
-      nocache: yes   # <-- disables build cache
-    source: build
-    state: present
-    force_tag: true
+    name: ghcr.io/timfbr03/cloud-computing-dski:latest
+    source: pull
 
-
-- name: Stop and remove old 'flask-api' container if it exists
+- name: Run Docker container with port forwarding
   community.docker.docker_container:
     name: flask-api
-    state: absent
-  ignore_errors: true
+    image: ghcr.io/timfbr03/cloud-computing-dski:latest
+    state: started
+    restart_policy: always
+    ports:
+      - "80:5000"
 
 - name: Run Docker container with port forwarding
   community.docker.docker_container:
@@ -58,4 +33,3 @@
     restart_policy: always
     ports:
       - "80:5000"
-

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "calculator.fullname" . }}
+  labels:
+    app: {{ include "calculator.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "calculator.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "calculator.name" . }}
+    spec:
+      containers:
+        - name: api-calculator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
