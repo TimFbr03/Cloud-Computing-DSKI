@@ -1,0 +1,231 @@
+# Todo App - 3 Individual Docker Containers
+
+A full-stack todo application built with microservices architecture using 3 separate Docker containers.
+
+## Architecture
+
+This application consists of exactly **3 independent Docker containers (pods)**:
+
+1. **Container 1: Database Pod** (PostgreSQL) - Port 5432
+2. **Container 2: Backend API Pod** (Node.js/Express) - Port 3001  
+3. **Container 3: Frontend Pod** (React/Nginx) - Port 3000
+
+Each container runs as an independent pod with its own isolated environment.
+
+## Project Structure
+
+```
+todo-app/
+├── run-app.sh
+├── stop-app.sh
+├── database/
+│   ├── Dockerfile
+│   └── init.sql
+├── backend/
+│   ├── Dockerfile
+│   ├── package.json
+│   └── server.js
+└── frontend/
+    ├── Dockerfile
+    ├── package.json
+    ├── public/
+    │   └── index.html
+    └── src/
+        ├── index.js
+        ├── App.js
+        └── App.css
+```
+
+## Setup Instructions
+
+### Prerequisites
+- Docker installed on your system
+- Git (to clone or download the project files)
+
+### Step 1: Create Project Structure
+Create the following directory structure and add the provided files:
+
+```bash
+mkdir todo-app
+cd todo-app
+mkdir -p database backend frontend/src frontend/public
+```
+
+### Step 2: Add Files
+Place each file in its corresponding location:
+
+- `run-app.sh` → Root directory
+- `stop-app.sh` → Root directory
+- `database/Dockerfile` → database/ directory
+- `database/init.sql` → database/ directory
+- `backend/Dockerfile` → backend/ directory
+- `backend/package.json` → backend/ directory
+- `backend/server.js` → backend/ directory
+- `frontend/Dockerfile` → frontend/ directory
+- `frontend/package.json` → frontend/ directory
+- `frontend/public/index.html` → frontend/public/ directory
+- `frontend/src/index.js` → frontend/src/ directory
+- `frontend/src/App.js` → frontend/src/ directory
+- `frontend/src/App.css` → frontend/src/ directory
+
+### Step 3: Run the Application
+
+#### Option 1: Use the automated script
+```bash
+chmod +x run-app.sh
+./run-app.sh
+```
+
+#### Option 2: Manual pod startup
+Run these commands in separate terminals to start each pod:
+
+**Terminal 1 - Database Pod:**
+```bash
+docker run -d \
+  --name todo-database \
+  -e POSTGRES_DB=todoapp \
+  -e POSTGRES_USER=todouser \
+  -e POSTGRES_PASSWORD=todopass \
+  -p 5432:5432 \
+  -v $(pwd)/init.sql:/docker-entrypoint-initdb.d/init.sql \
+  postgres:15
+```
+
+**Terminal 2 - Backend API Pod:**
+```bash
+cd backend
+docker build -t todo-backend .
+docker run -d \
+  --name todo-backend \
+  --link todo-database:db \
+  -e DATABASE_URL=postgresql://todouser:todopass@db:5432/todoapp \
+  -e PORT=3001 \
+  -p 3001:3001 \
+  todo-backend
+```
+
+**Terminal 3 - Frontend Pod:**
+```bash
+cd frontend
+docker build -t todo-frontend .
+docker run -d \
+  --name todo-frontend \
+  --link todo-backend:api \
+  -e REACT_APP_API_URL=http://localhost:3001 \
+  -p 3000:3000 \
+  todo-frontend
+```
+
+### Step 4: Access the Application
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:3001
+- **Database**: localhost:5432 (for direct connections)
+
+## Individual Pod Management
+
+### Stop Individual Pods
+```bash
+docker stop todo-frontend    # Stop Frontend Pod
+docker stop todo-backend     # Stop Backend API Pod  
+docker stop todo-database    # Stop Database Pod
+```
+
+### Remove Pods
+```bash
+docker rm todo-frontend todo-backend todo-database
+```
+
+### View Pod Logs
+```bash
+docker logs todo-database    # Database Pod logs
+docker logs todo-backend     # Backend API Pod logs
+docker logs todo-frontend    # Frontend Pod logs
+```
+
+### Rebuild Individual Pods
+```bash
+# Rebuild Backend API Pod
+cd backend && docker build -t todo-backend .
+
+# Rebuild Frontend Pod
+cd frontend && docker build -t todo-frontend .
+```
+
+### Access Database Pod
+```bash
+docker exec -it todo-database psql -U todouser -d todoapp
+```
+
+## API Endpoints
+
+The backend provides the following REST API endpoints:
+
+- `GET /api/todos` - Get all todos
+- `GET /api/todos/:id` - Get specific todo
+- `POST /api/todos` - Create new todo
+- `PUT /api/todos/:id` - Update todo
+- `DELETE /api/todos/:id` - Delete todo
+- `GET /health` - Health check
+
+## Features
+
+- ✅ Create, read, update, and delete todos
+- ✅ Mark todos as complete/incomplete
+- ✅ Responsive design
+- ✅ Real-time updates
+- ✅ Error handling
+- ✅ Health checks
+- ✅ Persistent data storage
+- ✅ Independent pod deployment
+- ✅ 3 separate Docker containers architecture
+
+## Pod Communication
+
+The 3 pods communicate using Docker's `--link` functionality:
+
+- **Pod 3 (Frontend)** → **Pod 2 (Backend API)** via `api` link
+- **Pod 2 (Backend API)** → **Pod 1 (Database)** via `db` link
+- Each pod runs independently but can communicate through linked names
+
+**Communication Flow:**
+```
+[Pod 3: Frontend] --HTTP--> [Pod 2: Backend API] --SQL--> [Pod 1: Database]
+     Port 3000                    Port 3001                   Port 5432
+```
+
+## Environment Variables
+
+### Backend API Pod
+- `DATABASE_URL` - PostgreSQL connection string
+- `PORT` - API server port (default: 3001)
+
+### Frontend Pod
+- `REACT_APP_API_URL` - Backend API URL (default: http://localhost:3001)
+
+### Database Pod
+- `POSTGRES_DB` - Database name
+- `POSTGRES_USER` - Database user
+- `POSTGRES_PASSWORD` - Database password
+
+## Troubleshooting
+
+1. **Port conflicts**: If ports 3000, 3001, or 5432 are already in use, change the port mappings in the docker run commands
+
+2. **Pod linking issues**: Ensure pods are started in the correct order (Database Pod → Backend API Pod → Frontend Pod)
+
+3. **Database connection issues**: Wait for the database pod to be fully ready before starting the backend API pod
+
+4. **Permission issues**: On Linux/Mac, you may need to run Docker commands with `sudo`
+
+5. **Pod startup order**: The automated script includes proper delays between pod starts
+
+## Production Considerations
+
+For production deployment, consider:
+- Using Docker networks instead of deprecated `--link`
+- Implementing proper secret management
+- Adding SSL/TLS certificates
+- Setting up monitoring and logging
+- Using a reverse proxy (nginx)
+- Implementing database backups
+- Using container orchestration (Kubernetes, Docker Swarm)
