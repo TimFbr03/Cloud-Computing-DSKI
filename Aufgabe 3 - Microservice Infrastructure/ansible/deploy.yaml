@@ -9,3 +9,9 @@
   become: true
   roles:
     - k3s-worker
+
+- name: Deploy microservice to K3s cluster
+  hosts: k3s_master
+  become: true
+  roles:
+    - deploy-api-calculator

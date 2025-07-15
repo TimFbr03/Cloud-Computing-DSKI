@@ -1,0 +1,45 @@
+- name: Ensure destination directory exists
+  file:
+    path: /tmp/api-calculator
+    state: directory
+    mode: '0755'
+
+- name: Copy Helm chart to remote
+  copy:
+    src: ../../../../helm/deploy-api-calculator/
+    dest: /tmp/api-calculator/
+  become: true
+
+- name: Deploy or upgrade myapi Helm chart
+  community.kubernetes.helm:
+    name: myapi
+    chart_ref: /tmp/api-calculator
+    namespace: default
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    state: present
+    wait: yes
+  become: true
+
+  # -------------------------------
+# Port forwarding for Prometheus
+# -------------------------------
+
+- name: Copy API ingress manifest
+  copy:
+    src: api-calculator-ingress.yaml
+    dest: /tmp/api-calculator-ingress.yaml
+    mode: '0644'
+
+- name: Wait for ingress-nginx controller pods to be ready
+  shell: |
+    kubectl wait --namespace ingress-nginx \
+      --for=condition=Ready pod \
+      --selector=app.kubernetes.io/component=controller \
+      --timeout=180s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Apply api-calculator ingress
+  shell: kubectl apply -f /tmp/api-calculator-ingress.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml

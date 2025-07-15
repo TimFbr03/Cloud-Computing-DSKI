@@ -37,7 +37,7 @@ resource "random_id" "cluster_id" {
 
 # Kubernetes Master
 resource "openstack_compute_instance_v2" "k8s_master" {
-  name = "k8s-${random_id.cluster_id.hex}-master"
+  name = "k3s-${random_id.cluster_id.hex}-master"
   image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
   flavor_name = "cb1.medium"
   key_pair    = "tfa_pub_key"
@@ -50,7 +50,7 @@ resource "openstack_compute_instance_v2" "k8s_master" {
 # Kubernetes Worker Nodes
 resource "openstack_compute_instance_v2" "k8s_worker" {
   count       = 2
-  name  = "k8s-${random_id.cluster_id.hex}-worker-${count.index + 1}"
+  name  = "k3s-${random_id.cluster_id.hex}-worker-${count.index + 1}"
   image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
   flavor_name = "cb1.medium"
   key_pair    = "tfa_pub_key"
