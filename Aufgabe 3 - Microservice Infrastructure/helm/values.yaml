@@ -1,9 +1,0 @@
-image:
-  repository: flask-api
-  tag: latest
-
-service:
-  type: NodePort
-  port: 80
-  targetPort: 5000
-  nodePort: 30080
