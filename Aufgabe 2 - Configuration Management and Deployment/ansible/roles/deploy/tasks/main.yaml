@@ -1,0 +1,40 @@
+- name: Install system dependencies (git, docker.io)
+  ansible.builtin.apt:
+    name: ['git', 'docker.io']
+    state: present
+    update_cache: yes
+  notify: Ensure Docker service running
+
+- name: Ensure Docker is running and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Ensure docker group exists
+  group:
+    name: docker
+    state: present
+
+- name: Add user to docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+- name: Reboot machine for docker group to take effect
+  reboot:
+
+- name: Pull Docker image from GHCR
+  community.docker.docker_image:
+    name: ghcr.io/timfbr03/cloud-computing-dski:latest
+    source: pull
+
+- name: Run Docker container with port forwarding
+  community.docker.docker_container:
+    name: flask-api
+    image: ghcr.io/timfbr03/cloud-computing-dski:latest
+    state: started
+    restart_policy: always
+    ports:
+      - "80:5000"

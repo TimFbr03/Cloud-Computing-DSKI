@@ -1,0 +1,6 @@
+---
+- name: Immutable infrastructure provisioning with Helm & GHCR
+  hosts: all
+  become: true
+  roles:
+    - deploy
