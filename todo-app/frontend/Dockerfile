@@ -1,24 +1,12 @@
-FROM node:18-alpine
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --silent
-
-# Copy source code
-COPY . .
-
-# Build the app
-RUN npm run build
-
-# Install serve to run the production build
-RUN npm install -g serve
-
-# Expose port
+FROM nginx:alpine
+COPY simple-build/ /usr/share/nginx/html/
+RUN echo 'server { \
+    listen 3000; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location /api/ { \
+        proxy_pass http://todo-backend-service:3001/api/; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 EXPOSE 3000
-
-# Start the application
-CMD ["serve", "-s", "build", "-l", "3000"]
+CMD ["nginx", "-g", "daemon off;"]
