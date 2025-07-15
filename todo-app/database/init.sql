@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS todos (
 CREATE INDEX IF NOT EXISTS idx_todos_created_at ON todos(created_at);
 CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
 
--- Insert sample data
+-- Insert exsample data
 INSERT INTO todos (title, description) VALUES
-    ('Setup development environment', 'Install Docker and configure the microservices'),
-    ('Create database schema', 'Design and implement the PostgreSQL database structure'),
-    ('Build REST API', 'Develop the backend API with Node.js and Express'),
-    ('Design frontend UI', 'Create a responsive React frontend for the todo app');
+    ('Buy plant fertilizer', 'Help the balcony plants thrive before summer end'),
+    ('Draft newsletter outline', 'Sketch the main points for this week email blast'),
+    ('Call Grandma', 'Catch up and hear her stories from the family reunion'),
+    ('Clean out junk drawer', 'Toss or organize the mysterious pile of odds and ends');
 
 -- Update one todo as completed
-UPDATE todos SET completed = TRUE WHERE title = 'Setup development environment';
+UPDATE todos SET completed = TRUE WHERE title = 'Buy plant fertilizer';
