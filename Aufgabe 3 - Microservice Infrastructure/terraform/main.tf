@@ -74,3 +74,21 @@ EOF
 
   filename = "../ansible/inventory/inventory.ini"
 }
+
+resource "null_resource" "ansible_provisioner" {
+  depends_on = [
+    openstack_compute_instance_v2.k8s_master,
+    openstack_compute_instance_v2.k8s_worker,
+    local_file.inventory_ini
+  ]
+
+  provisioner "local-exec" {
+    command = "sleep 45 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml"
+  }
+
+  triggers = {
+    master_id  = openstack_compute_instance_v2.k8s_master.id
+    master_ip  = openstack_compute_instance_v2.k8s_master.network.0.fixed_ip_v4
+    worker_ips = join(",", [for w in openstack_compute_instance_v2.k8s_worker : w.network.0.fixed_ip_v4])
+  }
+}

@@ -5,9 +5,12 @@ metadata:
   namespace: default
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
+  labels:
+    kubernetes.io/ingress.class: "nginx"
 spec:
   rules:
-    - http:
+    - host: myapi.local
+      http:
         paths:
           - path: /
             pathType: Prefix

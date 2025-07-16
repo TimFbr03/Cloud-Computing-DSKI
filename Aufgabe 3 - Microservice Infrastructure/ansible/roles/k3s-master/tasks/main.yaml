@@ -5,6 +5,31 @@
   args:
     creates: /etc/rancher/k3s/k3s.yaml
 
+- name: Configure CoreDNS for internal domain resolution
+  become: true
+  copy:
+    dest: /var/lib/rancher/k3s/server/manifests/coredns-custom.yaml
+    content: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns-custom
+        namespace: kube-system
+      data:
+        internal.server: |
+          internal.cluster:53 {
+              errors
+              cache 30
+              forward . /etc/resolv.conf
+          }
+
+- name: Restart CoreDNS
+  become: true
+  shell: |
+    kubectl -n kube-system rollout restart deployment coredns
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
 - name: Get join token
   shell: cat /var/lib/rancher/k3s/server/node-token
   register: k3s_token

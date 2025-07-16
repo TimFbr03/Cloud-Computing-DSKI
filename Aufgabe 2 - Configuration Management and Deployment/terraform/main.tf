@@ -7,6 +7,12 @@ variable "os_auth_url" {}
 variable "os_tenant_id" {}
 variable "os_pub_key" {}
 
+variable "container_version" {
+  description = "Version of the Docker container to deploy"
+  type        = string
+  default = "latest"
+}
+
 # Initialisieren der Terraform Instans
 terraform {
   required_providers {
@@ -49,6 +55,19 @@ EOF
   filename = "../ansible/inventory/inventory.ini"
 }
 
+resource "null_resource" "ansible_provisioner" {
+  depends_on = [
+    openstack_compute_instance_v2.web_server,
+    local_file.inventory_ini
+  ]
 
+  provisioner "local-exec" {
+    command = "sleep 30 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml -e \"container_version=${var.container_version}\""
+  }
 
-
+  triggers = {
+    instance_id = openstack_compute_instance_v2.web_server.id
+    ip_address  = openstack_compute_instance_v2.web_server.network.0.fixed_ip_v4
+    container_version = var.container_version
+  }
+}
