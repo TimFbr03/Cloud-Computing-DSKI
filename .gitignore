@@ -9,3 +9,5 @@ terraform.tfstate.backup
 inventory.ini
 
 .venv
+
+node_modules
