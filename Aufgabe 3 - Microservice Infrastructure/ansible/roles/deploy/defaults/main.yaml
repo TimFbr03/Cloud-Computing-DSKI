@@ -1,0 +1,11 @@
+docker_packages:
+  - docker.io
+
+ghcr_images:
+  backend: "ghcr.io/timfbr03/cloud-computing-dski/backend:latest"
+  frontend: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
+  database: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
+
+helm_chart_path: "/opt/helm/microservices"
+helm_release_name: "microservices"
+helm_namespace: "microservices-ns"

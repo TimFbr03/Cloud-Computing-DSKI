@@ -1,17 +1,6 @@
-- name: Install k3s cluster
-  hosts: k3s_master
+---
+- name: Immutable infrastructure provisioning with Helm & GHCR
+  hosts: all
   become: true
   roles:
-    - k3s-master
-
-- name: Join worker nodes
-  hosts: k3s_worker
-  become: true
-  roles:
-    - k3s-worker
-
-- name: Deploy microservice to K3s cluster
-  hosts: k3s_master
-  become: true
-  roles:
-    - deploy-api-calculator
+    - deploy

@@ -59,10 +59,10 @@ resource "openstack_compute_instance_v2" "k8s_worker" {
 # Inventory file for Ansible
 resource "local_file" "inventory_ini" {
   content = <<EOF
-[k8s_master]
+[k3s_master]
 ${openstack_compute_instance_v2.k8s_master.network.0.fixed_ip_v4} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 
-[k8s_worker]
+[k3s_worker]
 %{ for worker in openstack_compute_instance_v2.k8s_worker ~}
 ${worker.network.0.fixed_ip_v4} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 %{ endfor ~}

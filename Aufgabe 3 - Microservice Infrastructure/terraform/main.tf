@@ -43,7 +43,7 @@ resource "openstack_compute_instance_v2" "k8s_master" {
   key_pair    = "tfa_pub_key"
 
   network {
-    name = "provider_912"
+    name = "DHBW"
   }
 }
 
@@ -56,7 +56,7 @@ resource "openstack_compute_instance_v2" "k8s_worker" {
   key_pair    = "tfa_pub_key"
 
   network {
-    name = "provider_912"
+    name = "DHBW"
   }
 }
 

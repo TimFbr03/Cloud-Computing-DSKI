@@ -32,7 +32,7 @@ RUN echo 'server { \
     \
     # Proxy API requests to backend \
     location /api/ { \
-        proxy_pass http://todo-backend-service:3001/api/; \
+        proxy_pass http://backend:3001/api/; \
         proxy_set_header Host $host; \
         proxy_set_header X-Real-IP $remote_addr; \
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
