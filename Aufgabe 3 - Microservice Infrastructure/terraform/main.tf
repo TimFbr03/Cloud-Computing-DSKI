@@ -83,7 +83,7 @@ resource "null_resource" "ansible_provisioner" {
   ]
 
   provisioner "local-exec" {
-    command = "sleep 45 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml"
+    command = "sleep 60 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml"
   }
 
   triggers = {

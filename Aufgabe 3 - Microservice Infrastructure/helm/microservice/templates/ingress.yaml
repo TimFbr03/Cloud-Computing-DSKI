@@ -1,33 +1,18 @@
-{{- range $serviceName, $service := .Values }}
-{{- if $service.ingress.enabled }}
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ $serviceName }}-ingress
+  name: frontend-ingress
+  namespace: microservices-ns
   annotations:
-    {{- range $key, $value := $service.ingress.annotations }}
-    {{ $key }}: {{ $value | quote }}
-    {{- end }}
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-    {{- range $host := $service.ingress.hosts }}
-    - host: {{ $host.host }}
-      http:
-        paths:
-          {{- range $path := $host.paths }}
-          - path: {{ $path.path }}
-            pathType: {{ $path.pathType }}
-            backend:
-              service:
-                name: {{ $serviceName }}
-                port:
-                  number: {{ $service.service.port }}
-          {{- end }}
-    {{- end }}
-  tls:
-    {{- if $service.ingress.tls }}
-    {{- toYaml $service.ingress.tls | nindent 4 }}
-    {{- end }}
-{{- end }}
-{{- end }}
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 3000

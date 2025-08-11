@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = '';  // or just use relative URLs directly
 
 function App() {
   const [todos, setTodos] = useState([]);
@@ -31,7 +31,7 @@ function App() {
     if (!newTodo.title.trim()) return;
 
     try {
-      const response = await axios.post(`${API_URL}/api/todos`, newTodo);
+      const response = await axios.get(`/api/todos`);
       setTodos([response.data, ...todos]);
       setNewTodo({ title: '', description: '' });
       setError('');

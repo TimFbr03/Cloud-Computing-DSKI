@@ -19,6 +19,7 @@ frontend:
   service:
     type: ClusterIP
     port: 3000
+    nodePort: 32000
   ingress:
     enabled: true
     annotations:
