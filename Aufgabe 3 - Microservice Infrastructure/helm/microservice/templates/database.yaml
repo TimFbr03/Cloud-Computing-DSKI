@@ -1,0 +1,162 @@
+---
+# Database ConfigMap for init script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: todo-app
+data:
+  init.sql: |
+    -- Create todos table
+    CREATE TABLE IF NOT EXISTS todos (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        completed BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Create index for better performance
+    CREATE INDEX IF NOT EXISTS idx_todos_created_at ON todos(created_at);
+    CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
+
+    -- Insert sample data
+    INSERT INTO todos (title, description) VALUES
+        ('Setup K3s environment', 'Deploy the todo app on K3s cluster'),
+        ('Create database schema', 'Design and implement the PostgreSQL database structure'),
+        ('Build REST API', 'Develop the backend API with Node.js and Express'),
+        ('Design frontend UI', 'Create a responsive React frontend for the todo app');
+
+    -- Update one todo as completed
+    UPDATE todos SET completed = TRUE WHERE title = 'Setup K3s environment';
+
+---
+# Database Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: todo-app
+type: Opaque
+data:
+  # Base64 encoded values
+  # todouser = dG9kb3VzZXI=
+  # todopass = dG9kb3Bhc3M=
+  # todoapp = dG9kb2FwcA==
+  POSTGRES_USER: dG9kb3VzZXI=
+  POSTGRES_PASSWORD: dG9kb3Bhc3M=
+  POSTGRES_DB: dG9kb2FwcA==
+
+---
+# Database PersistentVolumeClaim (K3s uses local-path by default)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: todo-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path  # K3s default storage class
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Database Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-database
+  namespace: todo-app
+  labels:
+    app: todo-database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-database
+  template:
+    metadata:
+      labels:
+        app: todo-database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine  # Smaller image for k3s
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - todouser
+            - -d
+            - todoapp
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - todouser
+            - -d
+            - todoapp
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "128Mi"  # Reduced for k3s
+            cpu: "100m"
+          limits:
+            memory: "512Mi"  # Reduced for k3s
+            cpu: "500m"
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+      - name: postgres-init
+        configMap:
+          name: postgres-init
+
+---
+# Database Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-database-service
+  namespace: todo-app
+  labels:
+    app: todo-database
+spec:
+  selector:
+    app: todo-database
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  type: ClusterIP

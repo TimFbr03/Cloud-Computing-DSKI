@@ -11,21 +11,12 @@ backend:
     enabled: false
 
 frontend:
-  replicaCount: 1
-  image:
-    repository: ghcr.io/timfbr03/cloud-computing-dski/frontend
-    tag: latest
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 3000
-    nodePort: 32000
   ingress:
     enabled: true
     annotations:
       nginx.ingress.kubernetes.io/rewrite-target: /
     hosts:
-      - host: myfrontend.local
+      - host: ""       # empty string or remove this block entirely
         paths:
           - path: /
             pathType: Prefix
