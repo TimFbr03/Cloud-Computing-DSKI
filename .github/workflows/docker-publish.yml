@@ -42,32 +42,107 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
+      # --- Aufgabe 2 Image ---
+      - name: Extract Docker metadata (aufgabe2)
+        id: meta2
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/aufgabe2
           tags: |
             type=raw,value=latest
             type=ref,event=tag
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
-      - name: Build and push Docker image
-        id: build-and-push
+      - name: Build and push Docker image (aufgabe2)
+        id: build2
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
         with:
           context: ./Aufgabe 2 - Configuration Management and Deployment/app
           file: ./Aufgabe 2 - Configuration Management and Deployment/app/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta2.outputs.tags }}
+          labels: ${{ steps.meta2.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Sign the published Docker image
+      # --- Backend ---
+      - name: Extract Docker metadata (backend)
+        id: meta-backend
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push Docker image (backend)
+        id: build-backend
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
+        with:
+          context: ./Aufgabe 3 - Microservice Infrastructure/app/backend
+          file: ./Aufgabe 3 - Microservice Infrastructure/app/backend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Frontend ---
+      - name: Extract Docker metadata (frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push Docker image (frontend)
+        id: build-frontend
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
+        with:
+          context: ./Aufgabe 3 - Microservice Infrastructure/app/frontend
+          file: ./Aufgabe 3 - Microservice Infrastructure/app/frontend/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Database ---
+      - name: Extract Docker metadata (database)
+        id: meta-database
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/database
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push Docker image (database)
+        id: build-database
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
+        with:
+          context: ./Aufgabe 3 - Microservice Infrastructure/app/database
+          file: ./Aufgabe 3 - Microservice Infrastructure/app/database/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-database.outputs.tags }}
+          labels: ${{ steps.meta-database.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Sign images ---
+      - name: Sign the published Docker images
         if: ${{ github.event_name != 'pull_request' }}
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+        run: |
+          cosign sign --yes $(echo "${{ steps.meta2.outputs.tags }}" | tr ' ' '\n' | sed "s|$|@${{ steps.build2.outputs.digest }}|")
+          cosign sign --yes $(echo "${{ steps.meta-backend.outputs.tags }}" | tr ' ' '\n' | sed "s|$|@${{ steps.build-backend.outputs.digest }}|")
+          cosign sign --yes $(echo "${{ steps.meta-frontend.outputs.tags }}" | tr ' ' '\n' | sed "s|$|@${{ steps.build-frontend.outputs.digest }}|")
+          cosign sign --yes $(echo "${{ steps.meta-database.outputs.tags }}" | tr ' ' '\n' | sed "s|$|@${{ steps.build-database.outputs.digest }}|")
