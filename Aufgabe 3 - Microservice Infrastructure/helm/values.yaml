@@ -1,0 +1,95 @@
+# Default values for microservice helm chart
+nameOverride: ""
+fullnameOverride: ""
+
+# Common settings
+imagePullSecrets: []
+podSecurityContext: {}
+securityContext: {}
+
+# Frontend configuration
+frontend:
+  name: frontend
+  replicaCount: 1
+  image:
+    repository: ghcr.io/timfbr03/cloud-computing-dski/frontend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Backend configuration
+backend:
+  name: backend
+  replicaCount: 1
+  image:
+    repository: ghcr.io/timfbr03/cloud-computing-dski/backend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 3001
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    PORT: 3001
+
+# Database configuration
+database:
+  name: database
+  replicaCount: 1
+  image:
+    repository: ghcr.io/timfbr03/cloud-computing-dski/database
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 5432
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  persistence:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 1Gi
+  env:
+    POSTGRES_DB: todoapp
+    POSTGRES_USER: todouser
+    POSTGRES_PASSWORD: todopass
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "traefik"
+  annotations:
+    # Use these annotations for Traefik to work with IP-based routing
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: default-strip-prefix@kubernetescrd
+  # We'll use a catch-all host rule (empty host field)
+  paths:
+    - path: /
+      pathType: Prefix
+      service: frontend
+      port: 3000
+    - path: /api
+      pathType: Prefix
+      service: backend
+      port: 3001

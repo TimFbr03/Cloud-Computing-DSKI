@@ -8,4 +8,4 @@ ghcr_images:
 
 helm_chart_path: "/opt/helm/microservices"
 helm_release_name: "microservices"
-helm_namespace: "microservices-ns"
+helm_namespace: "microservices"

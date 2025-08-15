@@ -1,6 +1,0 @@
-apiVersion: v2
-name: myapi
-description: Deploy API container from GHCR on K3s
-type: application
-version: 0.1.0
-appVersion: "1.0"

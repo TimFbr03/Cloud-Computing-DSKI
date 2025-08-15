@@ -20,6 +20,7 @@
   delay: 5
   until: k3s_status.rc == 0
 
+
 - name: Install Helm
   shell: curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
   args:
@@ -31,17 +32,38 @@
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
+- name: Install Traefik CRDs
+  shell: |
+    kubectl apply -f https://raw.githubusercontent.com/traefik/traefik/v2.10/docs/content/reference/dynamic-configuration/kubernetes-crd-definition-v1alpha1.yml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
 - name: Copy Helm chart to remote host
   copy:
-    src: "{{ playbook_dir }}/../helm/microservice/"
+    src: "{{ playbook_dir }}/../helm/"
     dest: "{{ helm_chart_path }}/"
     mode: '0644'
+    remote_src: no
+    directory_mode: '0755'
 
-- name: Deploy Helm chart from copied directory
+- name: Build Helm chart dependencies
+  shell: helm dependency build "{{ helm_chart_path }}"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  args:
+    chdir: "{{ helm_chart_path }}"
+
+- name: Deploy Helm chart
   shell: |
     helm upgrade --install "{{ helm_release_name }}" "{{ helm_chart_path }}" \
-      --namespace "{{ helm_namespace }}" \
+      --namespace todo-app \
       --create-namespace \
       -f "{{ helm_chart_path }}/values.yaml"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Ensure Traefik service is exposed
+  shell: |
+    kubectl -n kube-system patch service traefik -p '{"spec":{"externalTrafficPolicy":"Local"}}'
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml

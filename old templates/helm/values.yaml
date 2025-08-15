@@ -1,0 +1,27 @@
+frontend:
+  image: ghcr.io/timfbr03/cloud-computing-dski/frontend:latest
+  service:
+    port: 3000
+  ingress:
+    enabled: true
+    hostname: todo.local
+
+backend:
+  image: ghcr.io/timfbr03/cloud-computing-dski/backend:latest
+  service:
+    port: 3001
+
+database:
+  image: ghcr.io/timfbr03/cloud-computing-dski/database:latest
+  service:
+    port: 5432
+  env:
+    POSTGRES_USER: todo_user
+    POSTGRES_PASSWORD: todo_pass
+    POSTGRES_DB: todo_db
+
+prometheus:
+  alertmanager:
+    enabled: false
+  pushgateway:
+    enabled: false
