@@ -42,33 +42,53 @@ function App() {
     }
   };
 
-  // Toggle todo completion
+  // Toggle todo completion safely
   const toggleTodo = async (id, completed) => {
+    if (!id) {
+      console.error('Cannot update todo: id is missing');
+      setError('Failed to update todo: missing id');
+      return;
+    }
+
     try {
       const todo = todos.find(t => t.id === id);
+      if (!todo) {
+        console.error('Todo not found in state:', id);
+        setError('Failed to update todo: not found');
+        return;
+      }
+
       const response = await axios.put(`${API_URL}/api/todos/${id}`, {
         ...todo,
         completed: !completed
       });
+
       setTodos(todos.map(t => t.id === id ? response.data : t));
       setError('');
     } catch (err) {
-      setError('Failed to update todo');
       console.error('Error updating todo:', err);
+      setError('Failed to update todo');
     }
   };
 
-  // Delete todo
+  // Delete todo safely
   const deleteTodo = async (id) => {
+    if (!id) {
+      console.error('Cannot delete todo: id is missing');
+      setError('Failed to delete todo: missing id');
+      return;
+    }
+
     try {
       await axios.delete(`${API_URL}/api/todos/${id}`);
       setTodos(todos.filter(t => t.id !== id));
       setError('');
     } catch (err) {
-      setError('Failed to delete todo');
       console.error('Error deleting todo:', err);
+      setError('Failed to delete todo');
     }
   };
+
 
   useEffect(() => {
     fetchTodos();
