@@ -18,5 +18,12 @@ spec:
           image: {{ $svc.image }}
           ports:
             - containerPort: {{ $svc.containerPort }}
+          {{- if $svc.env }}
+          env:
+            {{- range $e := $svc.env }}
+            - name: {{ $e.name }}
+              value: {{ $e.value | quote }}
+            {{- end }}
+          {{- end }}
 ---
 {{- end }}

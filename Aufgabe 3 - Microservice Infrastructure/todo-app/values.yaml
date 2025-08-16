@@ -53,34 +53,49 @@ services:
   backend:
     image: "ghcr.io/timfbr03/cloud-computing-dski/backend:latest"
     replicas: 2
-    containerPort: 8080
+    containerPort: 3001
     servicePort: 80
+    name: backend
+    env:
+      - name: DATABASE_URL
+        value: "postgresql://todouser:todopass@database:5432/todoapp"
 
   frontend:
     image: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
     replicas: 2
     containerPort: 3000
     servicePort: 80
+    env:
+    - name: REACT_APP_API_URL
+      value: "http://backend/api"
 
   database:
     image: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
     replicas: 1
     containerPort: 5432
     servicePort: 5432
+    env:
+      - name: POSTGRES_USER
+        value: "todouser"
+      - name: POSTGRES_PASSWORD
+        value: "todopass"
+      - name: POSTGRES_DB
+        value: "todoapp"
+      - name: POSTGRES_LISTEN_ADDRESSES
+        value: "*"
 
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
   hosts:
-    - host: chart-example.local
+    - host: todo.local
       paths:
         - path: /
-          pathType: ImplementationSpecific
+          pathType: Prefix
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:

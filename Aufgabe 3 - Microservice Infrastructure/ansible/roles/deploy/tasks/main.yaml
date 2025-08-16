@@ -8,8 +8,8 @@
     update_cache: yes
     state: present
 
-- name: Install k3s (lightweight Kubernetes)
-  shell: curl -sfL https://get.k3s.io | sh -
+- name: Install k3s with write permissions for kubeconfig
+  shell: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
   args:
     creates: /usr/local/bin/k3s
 
@@ -17,8 +17,14 @@
   shell: k3s kubectl get node
   register: k3s_status
   retries: 10
-  delay: 5
+  delay: 30   # wait 60 seconds between attempts
   until: k3s_status.rc == 0
+
+- name: Install Nginx Ingress Controller
+  shell: |
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
 - name: Install Helm
   shell: curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
@@ -46,3 +52,7 @@
       -f "{{ helm_chart_path }}/values.yaml"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: helm_result
+  retries: 5        # number of attempts
+  delay: 30         # seconds to wait between attempts
+  until: helm_result.rc == 0

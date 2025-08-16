@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-const API_URL = '';  // or just use relative URLs directly
+// API_URL bleibt leer -> Frontend und Backend laufen über dasselbe Ingress
+const API_URL = '';
 
 function App() {
   const [todos, setTodos] = useState([]);
@@ -31,7 +32,7 @@ function App() {
     if (!newTodo.title.trim()) return;
 
     try {
-      const response = await axios.get(`/api/todos`);
+      const response = await axios.post(`${API_URL}/api/todos`, newTodo);
       setTodos([response.data, ...todos]);
       setNewTodo({ title: '', description: '' });
       setError('');
