@@ -147,27 +147,24 @@ So wird sichergestellt, dass es keine inkonsistenten Zwischenzustände gibt.
 Eine alternative zu Terraform wäre ein automatisches Deployment über Github-Actions. In dieser Technologie, wird automatisch nach festgelegten Regeln, bei neuen Versionen die Infrasteuktur automatisch re-deployed. Für unseren Anwendungsfall jedoch nicht optimal, da die OpenStack instanz der DHBW nur per VPN verbindung erreichbar.  
 
 ## Aufgabe 2 - Configuration Management und Deployment
-Es sollen Apllikationen auf dieser Immutable Infrastructure deployed werden. Dafür werden Docker-Contaienr über Ansible auf der Instanz Deployed. 
-Hinzufügen einer automatischen Installation aller Systeme und anforderungen per Playbook auf der Open-Stack Infrastruktur.  
-Das Deployment soll weiterhin nur über Terraform erfolgen.  
-
-Über ein Ansible Playbook wird die Installation des Node.js Servers automatisiert.  
-Die Inventory.ini Datei wird automatisch von Terrform beschrieben, um die Verbindung per ssh zu ermöglichen.
+### Erweiterung der Infrastrukturdefinition
+Aufbauend auf dem ersten Kapitel, soll auf der vorhandenden Terraform OpenStack-Instanz, soll nun eine Installation und Konfiguration einer Beispielanwendung automatisiert werden.  
+Für das automatische konfiguration wird **Ansible** als Konfigurationsmanagement Toll verwendet.  
+- **Terraform** stellt die Infrastruktur bereit.
+- **Ansible** übernimmt die Provisionierung und Deployment der Anwendung.  
   
-Die Installation der Open-Stack Instanz über Terraform sowie die Installation des Node.js Servers werden von einer Makefile gesteuert.
-
-Automatisches Deployment mit einer Makefile:   
-**Deployment:**  
-```
-make deploy
-``` 
-Die Instanz sowie die Applikation werden automatisch Deployed.  
-
-**Delete:**
-```
-make destroy
+Die zu bereitstellende Anwendung ist ein auf Docker basierter Web-Service (eine Flask API), welche aus einem Container-Image in der Github Container Registry (GHCR) gestartet wird.  
+Ansible wird über eine Null-Ressource durch Terraform gestartet. 
+Nachdem die Terraform-Instanz fertig installiert ist, wird das Ansible Playbook über 
+```shell
+  sleep 30 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml -e \"container_version=${var.container_version}\"
 ```  
-Die Insatz wird gelöscht.
+
+### Ansible Playbook zur Anwendungsbereistellung
+Ansible installiert über ein Playbook alle Abhängigkeiten. Diese werden in einer .yaml Datei defiert.  
+
+Das Ansible Playbook 
+
 
 ## Aufgabe 3 - Microservice Infrastructure
 Multi-Node Containerorchestrierung über k3s Kubernetis.  
@@ -177,3 +174,7 @@ Multi-Node Containerorchestrierung über k3s Kubernetis.
   - Netzwerkinfrastruktur durch Nginx-Ingress.
 
 ### Terraform Deployment
+
+## Appendix - Github Actions
+Docker Container werden aus dem Code über Github-Actions in das Github Container Regestry (GHCR) gepusht.
+Jedes mal, wenn eine neue Version auf das Repository gepusht wird, wird die neue Version Containerisiert und auf das GHCR gepusht.
