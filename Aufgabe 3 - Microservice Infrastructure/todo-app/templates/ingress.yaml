@@ -5,20 +5,22 @@ metadata:
   namespace: microservices
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
 spec:
   ingressClassName: nginx
   rules:
-    - host: ""  # alle Hosts
+    - host: ""  # all hosts
       http:
         paths:
+          # Backend API (kein Rewrite!)
           - path: /api(/|$)(.*)
             pathType: Prefix
             backend:
               service:
                 name: backend
                 port:
-                  number: 80
+                  number: 80   # <- Service-Port!
+
+          # Frontend (catch-all, optional Rewrite für React)
           - path: /(.*)
             pathType: Prefix
             backend:
