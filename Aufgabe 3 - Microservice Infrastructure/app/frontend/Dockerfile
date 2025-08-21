@@ -14,48 +14,29 @@ RUN npm run build
 # Production stage with nginx
 FROM nginx:alpine
 
-# Copy built files
+# Copy built React files
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Create nginx configuration
+# Custom nginx config (kein API-Proxy, nur Static Files)
 RUN echo 'server { \
     listen 3000; \
     listen [::]:3000; \
     server_name localhost; \
     root /usr/share/nginx/html; \
     index index.html; \
-    \
-    # Handle React Router \
     location / { \
-        try_files $uri $uri/ /index.html; \
+        try_files $uri /index.html; \
     } \
-    \
-    # Proxy API requests to backend \
-    location /api/ { \
-        proxy_pass http://backend:3001/api/; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-    } \
-    \
-    # Security headers \
-    add_header X-Frame-Options "SAMEORIGIN" always; \
-    add_header X-Content-Type-Options "nosniff" always; \
-    add_header X-XSS-Protection "1; mode=block" always; \
-    \
-    # Cache static assets \
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ { \
+    location ~* \.(?:ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ { \
         expires 1y; \
         add_header Cache-Control "public, immutable"; \
     } \
+    add_header X-Frame-Options "SAMEORIGIN" always; \
+    add_header X-Content-Type-Options "nosniff" always; \
+    add_header X-XSS-Protection "1; mode=block" always; \
 } \
 ' > /etc/nginx/conf.d/default.conf
 
-# Remove default nginx config
-RUN rm -f /etc/nginx/conf.d/default.conf.default
-
 EXPOSE 3000
 
-# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
