@@ -31,40 +31,40 @@ Zugandaten und Parameter für die OpenStack-Verbindung werden als Variablen defi
 Variablen welche als sensitiv markiert sind, werden von Terraform nicht in klartext in den Logs ausgegeben:
 
 ```hcl
-  variable "os_user_name" {}
-  variable "os_password" {
-    sensitive = true
-  }
-  variable "os_auth_url" {}
-  variable "os_tenant_id" {}
-  variable "os_pub_key" {}
+variable "os_user_name" {}
+variable "os_password" {
+  sensitive = true
+}
+variable "os_auth_url" {}
+variable "os_tenant_id" {}
+variable "os_pub_key" {}
 ```
 
 #### __Provider__
 Für die Verbindung mit OpenStack wird der Provider durch die Variablen definiert und konfiguriert:
 ```hcl
-  provider "openstack" {
-    user_name   = var.os_user_name
-    password    = var.os_password
-    auth_url    = var.os_auth_url
-    tenant_id   = var.os_tenant_id
-  }
+provider "openstack" {
+  user_name   = var.os_user_name
+  password    = var.os_password
+  auth_url    = var.os_auth_url
+  tenant_id   = var.os_tenant_id
+}
 ```
 
 #### __Ressource (Immutable Komponente)__
 Die Ressource ist eine Virtuelle Maschine auf einer OpenStack umgebung der DHBW Mannheim. Diese befindet sich innerhalb der OpenStack umgebung in dem Netzwerk "*DHBW*" (früher "*provider_918*").
 
 ```hcl
-  resource "openstack_compute_instance_v2" "web_server" {
-    name = "tfa_cloud_comp"
-    image_id = "c57c2aef-f74a-4418-94ca-d3fb169162bf"
-    flavor_name = "cb1.medium"
-    key_pair = var.os_pub_key
+resource "openstack_compute_instance_v2" "web_server" {
+  name = "tfa_cloud_comp"
+  image_id = "c57c2aef-f74a-4418-94ca-d3fb169162bf"
+  flavor_name = "cb1.medium"
+  key_pair = var.os_pub_key
 
-      network {
-          name = "DHBW"
-      }
-  }
+    network {
+        name = "DHBW"
+    }
+}
 ```
 
 #### __Sicherstellen der Unveränderlichkeit__
@@ -80,7 +80,7 @@ Um die definierte Infrastruktur (hier eine OpenStack-Instanz) bereitzustellen, w
 Bevor Terraform die Ressourcen verwalten kann, muss die lokale Arbeitsumgebung initialisiert werden.
 Dabei lädt Terraform die im Code angegebenen Provider (hier: **OpenStack** und **local**) herunter und richtet das Backend ein.
 ```shell
-  terraform init
+terraform init
 ```
 Nach erfolgreicher Initialisierung zeigt Terraform an, dass die Provider installiert wurden und der Arbeitsbereich bereit ist.
 
@@ -88,7 +88,7 @@ Nach erfolgreicher Initialisierung zeigt Terraform an, dass die Provider install
 Bevor eine Änderung angewendet wird, ist es sinnvoll, aber nicht notendig diese mit `terraform plan` zu überprüfen. Dabei wird ein **Execution Plan** der geplanten Änderungen aufgezeichnet.
 
 ```shell
-  terraform plan
+terraform plan
 ```
 
 - Terraform ließt die aktuelle Konfiguration und Zustand der Infrastruktur.
@@ -101,7 +101,7 @@ Bevor eine Änderung angewendet wird, ist es sinnvoll, aber nicht notendig diese
 **3. Ausführen des Terraform Scripts**  
 Mit folgendem Befehl erstellt Terraform einen Execution Plan und führt diesen aus:
 ```shell
-  terraform apply
+terraform apply
 ```
 - Terraform überprüft den aktuelln zustand der OpenStack Instanz mit der aktuellen konfiguration.
 - Alle geplanten änderungen werden angezeigt und müssen bestätigt werden.
@@ -111,7 +111,7 @@ Mit folgendem Befehl erstellt Terraform einen Execution Plan und führt diesen a
 **4. Löschen der Infrastruktur**  
 Wenn die Infrastruktur nicht mehr benötigt wird, kann sie mit einem einzigen Befehl wieder entfernt werden:
 ```shell
-  terraform destoy
+terraform destoy
 ```
 - Terraform zeigt vorab an, welche Ressourcen gelöscht werden.
 - Nach Bestätigung wird die Compute-Instanz in OpenStack vollständig entfernt.  
@@ -156,15 +156,92 @@ Für das automatische konfiguration wird **Ansible** als Konfigurationsmanagemen
 Die zu bereitstellende Anwendung ist ein auf Docker basierter Web-Service (eine Flask API), welche aus einem Container-Image in der Github Container Registry (GHCR) gestartet wird.  
 Ansible wird über eine Null-Ressource durch Terraform gestartet. 
 Nachdem die Terraform-Instanz fertig installiert ist, wird das Ansible Playbook über 
-```shell
-  sleep 30 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml -e \"container_version=${var.container_version}\"
+```hcl
+resource "null_resource" "ansible_provisioner" {
+  depends_on = [
+    openstack_compute_instance_v2.web_server,
+    local_file.inventory_ini
+  ]
+
+  provisioner "local-exec" {
+    command = "sleep 30 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml -e \"container_version=${var.container_version}\""
+  }
+
+  triggers = {
+    instance_id = openstack_compute_instance_v2.web_server.id
+    ip_address  = openstack_compute_instance_v2.web_server.network.0.fixed_ip_v4
+    container_version = var.container_version
+  }
+}
 ```  
+ausgeführt. Dabei wird gewartet, bis die Instanz vollständig vorbereitet ist, und darauf hin das Ansible Playbook ausführt. Die Ip-Adresse wird über Terraform automatisch in eine Invenory.ini Datei beschrieben.
 
 ### Ansible Playbook zur Anwendungsbereistellung
-Ansible installiert über ein Playbook alle Abhängigkeiten. Diese werden in einer .yaml Datei defiert.  
+Ansible installiert über ein Playbook alle Abhängigkeiten. Diese werden in einer .yaml Datei definiert.  
+Das Ansible Playbook führt folgende Aufgabe aus:
+```yaml
+- name: Install system dependencies (git, docker.io)
+  ansible.builtin.apt:
+    name: ['git', 'docker.io']
+    state: present
+    update_cache: yes
+  notify: Ensure Docker service running
 
-Das Ansible Playbook 
+- name: Ensure Docker is running and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: yes
 
+- name: Ensure docker group exists
+  group:
+    name: docker
+    state: present
+
+- name: Add user to docker group
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+- name: Reboot machine for docker group to take effect
+  reboot:
+
+- name: Pull Docker image from GHCR
+  community.docker.docker_image:
+    name: ghcr.io/timfbr03/cloud-computing-dski:{{ container_version }}
+    source: pull
+
+- name: Run Docker container with port forwarding
+  community.docker.docker_container:
+    name: flask-api
+    image: ghcr.io/timfbr03/cloud-computing-dski:{{ container_version }}
+    state: started
+    restart_policy: always
+    ports:
+      - "80:5000"
+```
+- **Systemabhängigkeiten installieren:** Git und Docker werden über apt bereitgestellt.
+- **Docker-Dienst starten & aktivieren:** Stellt sicher, dass Docker sofort verfügbar ist und nach Neustarts automatisch läuft.
+- **Benutzerrechte anpassen:** Der Standardbenutzer ubuntu wird der docker-Gruppe hinzugefügt, damit Container ohne sudo verwaltet werden können.
+- **Reboot:** Notwendig, damit die neuen Gruppenrechte wirksam werden.
+- **Container-Image bereitstellen:** Das gewünschte Image wird aus GHCR gezogen.
+- **Container starten:** Der Flask-Webservice wird gestartet, Ports werden gemappt (80 → 5000).
+
+### Versionierung der Anwendung
+Die Container im GHCR sind durch Tags versioniert. 
+Das Playbook verwendet die Variable `container_version`, welche bei dem Deployment angegeben wird. Standartmäßig wird das Image mit dem Tag `:latest` verwendet.
+```yaml
+ghcr.io/timfbr03/cloud-computing-dski:v1
+ghcr.io/timfbr03/cloud-computing-dski:v2
+ghcr.io/timfbr03/cloud-computing-dski:latest
+```
+Durch einfaches Ändern von container_version im Ansible-Playbook oder in den Variablen-Dateien kann eine andere Version der Anwendung ausgerollt werden.  
+Dies ermöglicht:
+- **Upgrade:** Wechsel von v1 → v2 durch erneutes Playbook-Run.
+- **Rollback:** Wechsel zurück zu einer älteren Version (z. B. v1), falls Fehler auftreten
+
+### Infrastruktur-Versionierung & Rollback
 
 ## Aufgabe 3 - Microservice Infrastructure
 Multi-Node Containerorchestrierung über k3s Kubernetis.  

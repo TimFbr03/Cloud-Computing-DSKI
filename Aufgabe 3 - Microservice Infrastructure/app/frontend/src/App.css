@@ -183,3 +183,53 @@ body {
   .delete-btn:hover {
     opacity: 0.8;
   }
+
+  .logout-btn {
+    display: block;
+    margin: 10px auto;
+    padding: 10px 20px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .logout-btn:hover {
+    opacity: 0.9;
+  }
+  
+  .auth-container {
+    padding: 20px;
+  }
+  
+  .auth-form input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 16px;
+  }
+  
+  .auth-form button {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  
+  .link-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: 14px;
+    padding: 0;
+  }
+  
