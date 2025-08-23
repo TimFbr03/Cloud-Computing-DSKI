@@ -25,7 +25,7 @@
         if (!token) return;
         try {
           setLoading(true);
-          const response = await api.get('/todos');
+          const response = await api.get('/api/todos');
           setTodos(response.data);
           setError('');
         } catch (err) {
@@ -42,7 +42,7 @@
         if (!newTodo.title.trim()) return;
 
         try {
-          const response = await api.post('/todos', newTodo);
+          const response = await api.post('/api/todos', newTodo);
           setTodos([response.data, ...todos]);
           setNewTodo({ title: '', description: '' });
           setError('');
@@ -56,7 +56,7 @@
       const toggleTodo = async (id, completed) => {
         try {
           const todo = todos.find(t => t.id === id);
-          const response = await api.put(`/todos/${id}`, {
+          const response = await api.put(`/api/todos/${id}`, {
             ...todo,
             completed: !completed
           });
@@ -71,7 +71,7 @@
       // Delete todo
       const deleteTodo = async (id) => {
         try {
-          await api.delete(`/todos/${id}`);
+          await api.delete(`/api/todos/${id}`);
           setTodos(todos.filter(t => t.id !== id));
           setError('');
         } catch (err) {
@@ -84,7 +84,7 @@
       const handleAuth = async (e) => {
         e.preventDefault();
         try {
-          const endpoint = isRegister ? '/register' : '/login';
+          const endpoint = isRegister ? '/api/register' : '/api/login';
           const response = await axios.post(`${API_URL}${endpoint}`, {
             username,
             password

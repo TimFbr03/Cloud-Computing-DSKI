@@ -55,6 +55,7 @@ services:
     replicas: 2
     containerPort: 3001
     servicePort: 80
+    targetPort: 3001
     name: backend
     env:
       - name: DATABASE_URL
@@ -87,7 +88,7 @@ services:
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
