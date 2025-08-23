@@ -39,7 +39,7 @@ function authMiddleware(req, res, next) {
 }
 
 // Register
-app.post('/register', async (req, res) => {
+app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
   
   // Validierung
@@ -75,7 +75,7 @@ app.post('/register', async (req, res) => {
 });
 
 // Login
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   console.log("Login attempt:", { username, password }); // Debug!
 
@@ -103,7 +103,7 @@ app.post('/login', async (req, res) => {
 });
 
 // Todos (nur für eingeloggte User)
-app.get('/todos', authMiddleware, async (req, res) => {
+app.get('/api/todos', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT * FROM todos WHERE user_id=$1 ORDER BY created_at DESC',
@@ -116,7 +116,7 @@ app.get('/todos', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/todos', authMiddleware, async (req, res) => {
+app.post('/api/todos', authMiddleware, async (req, res) => {
   try {
     const { title, description } = req.body;
     if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -133,7 +133,7 @@ app.post('/todos', authMiddleware, async (req, res) => {
   }
 });
 
-app.put('/todos/:id', authMiddleware, async (req, res) => {
+app.put('/api/todos/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, description, completed } = req.body;
@@ -152,7 +152,7 @@ app.put('/todos/:id', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/todos/:id', authMiddleware, async (req, res) => {
+app.delete('/api/todos/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -171,7 +171,7 @@ app.delete('/todos/:id', authMiddleware, async (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
