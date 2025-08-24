@@ -1,5 +1,0 @@
-apiVersion: v2
-name: database
-description: Database for microservices app
-version: 0.1.0
-appVersion: "latest"

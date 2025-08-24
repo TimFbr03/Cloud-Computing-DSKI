@@ -1,9 +1,0 @@
----
-docker_packages:
-  - docker.io
-
-ghcr_image: "ghcr.io/timfbr03/cloud-computing-dski:latest"
-
-helm_chart_path: "/opt/helm/calculator"
-helm_release_name: "calculator"
-helm_namespace: "calculator-ns"

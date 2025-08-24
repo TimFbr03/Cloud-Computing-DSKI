@@ -38,7 +38,7 @@
 
 - name: Copy Helm chart to remote host
   copy:
-    src: "{{ playbook_dir }}/../todo-app/"
+    src: "{{ playbook_dir }}/../helm/"
     dest: "{{ helm_chart_path }}/"
     mode: '0644'
     remote_src: no
