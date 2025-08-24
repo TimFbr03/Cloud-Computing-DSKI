@@ -35,8 +35,8 @@ resource "random_id" "cluster_id" {
 #   public_key = var.os_pub_key
 # }
 
-# Kubernetes Master
-resource "openstack_compute_instance_v2" "k8s_master" {
+# Kubernetes server
+resource "openstack_compute_instance_v2" "k3s_server" {
   name = "k3s-${random_id.cluster_id.hex}-server"
   image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
   flavor_name = "cb1.medium"
@@ -48,7 +48,7 @@ resource "openstack_compute_instance_v2" "k8s_master" {
 }
 
 # Kubernetes Worker Nodes
-resource "openstack_compute_instance_v2" "k8s_worker" {
+resource "openstack_compute_instance_v2" "k3s_worker" {
   count       = 2
   name  = "k3s-${random_id.cluster_id.hex}-agent-${count.index + 1}"
   image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
@@ -60,14 +60,13 @@ resource "openstack_compute_instance_v2" "k8s_worker" {
   }
 }
 
-# Inventory file for Ansible
 resource "local_file" "inventory_ini" {
   content = <<EOF
-[k3s_master]
-${openstack_compute_instance_v2.k8s_master.network.0.fixed_ip_v4} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+[k3s_server]
+${openstack_compute_instance_v2.k3s_server.network.0.fixed_ip_v4} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 
-[k3s_worker]
-%{ for worker in openstack_compute_instance_v2.k8s_worker ~}
+[k3s_agent]
+%{ for worker in openstack_compute_instance_v2.k3s_worker ~}
 ${worker.network.0.fixed_ip_v4} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
 %{ endfor ~}
 EOF
@@ -75,10 +74,11 @@ EOF
   filename = "../ansible/inventory/inventory.ini"
 }
 
+
 resource "null_resource" "ansible_provisioner" {
   depends_on = [
-    openstack_compute_instance_v2.k8s_master,
-    openstack_compute_instance_v2.k8s_worker,
+    openstack_compute_instance_v2.k3s_server,
+    openstack_compute_instance_v2.k3s_worker,
     local_file.inventory_ini
   ]
 
@@ -87,8 +87,8 @@ resource "null_resource" "ansible_provisioner" {
   }
 
   triggers = {
-    master_id  = openstack_compute_instance_v2.k8s_master.id
-    master_ip  = openstack_compute_instance_v2.k8s_master.network.0.fixed_ip_v4
-    worker_ips = join(",", [for w in openstack_compute_instance_v2.k8s_worker : w.network.0.fixed_ip_v4])
+    server_id  = openstack_compute_instance_v2.k3s_server.id
+    server_ip  = openstack_compute_instance_v2.k3s_server.network.0.fixed_ip_v4
+    worker_ips = join(",", [for w in openstack_compute_instance_v2.k3s_worker : w.network.0.fixed_ip_v4])
   }
 }

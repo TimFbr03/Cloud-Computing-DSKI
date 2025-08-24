@@ -1,6 +1,6 @@
 ---
-- name: Immutable infrastructure provisioning with Helm & GHCR
+- name: Provision k3s cluster and deploy Helm chart
   hosts: all
-  become: true
+  become: yes
   roles:
     - deploy

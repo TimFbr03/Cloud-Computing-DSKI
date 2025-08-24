@@ -1,11 +1,61 @@
+# Docker Konfiguration
 docker_packages:
   - docker.io
 
+# Container Images
 ghcr_images:
   backend: "ghcr.io/timfbr03/cloud-computing-dski/backend:latest"
   frontend: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
   database: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
 
+# Helm Konfiguration für Microservices
 helm_chart_path: "/opt/helm/microservices"
 helm_release_name: "microservices"
 helm_namespace: "microservices"
+
+# Prometheus & Monitoring Konfiguration
+monitoring_namespace: "monitoring"
+prometheus_release_name: "prometheus"
+
+# Grafana Konfiguration
+grafana_admin_password: "admin123"  # In Produktion: verwende Ansible Vault!
+
+# Prometheus Storage Konfiguration
+prometheus_retention: "30d"
+prometheus_storage_size: "10Gi"
+prometheus_storage_class: "local-path"
+
+# Grafana Storage Konfiguration
+grafana_storage_size: "5Gi"
+grafana_storage_class: "local-path"
+
+# AlertManager Storage Konfiguration
+alertmanager_storage_size: "2Gi"
+alertmanager_storage_class: "local-path"
+
+# Helm Repository URLs
+helm_repositories:
+  prometheus: "https://prometheus-community.github.io/helm-charts"
+  grafana: "https://grafana.github.io/helm-charts"
+
+# Ingress Konfiguration
+ingress_class: "nginx"
+monitoring_ingress_paths:
+  prometheus: "/prometheus"
+  grafana: "/grafana"
+  alertmanager: "/alertmanager"
+
+# k3s Konfiguration
+k3s_write_kubeconfig_mode: "644"
+k3s_token_file: "/tmp/node-token"
+k3s_server_port: "6443"
+
+# Timeouts und Retries
+helm_install_timeout: "600s"
+k3s_ready_retries: 10
+k3s_ready_delay: 30
+helm_install_retries: 3
+helm_install_delay: 60
+
+# Nginx Ingress Controller Version
+nginx_ingress_version: "controller-v1.8.1"
