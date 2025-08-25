@@ -1,0 +1,19 @@
+replicaCount: 3
+kraft:
+  enabled: true
+listeners:
+  client:
+    protocol: PLAINTEXT
+rbac:
+  create: true
+service:
+  type: ClusterIP
+provisioning:
+  enabled: true
+  topics:
+    - name: events
+      partitions: 3
+      replicationFactor: 3
+    - name: results
+      partitions: 3
+      replicationFactor: 3

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+  namespace: stream
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: producer } }
+  template:
+    metadata: { labels: { app: producer } }
+    spec:
+      containers:
+        - name: producer
+          image: <euer-registry>/stream-producer:latest
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: kafka.stream.svc.cluster.local:9092
+            - name: TOPIC
+              value: events

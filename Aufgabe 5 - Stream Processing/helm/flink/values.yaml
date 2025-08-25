@@ -1,0 +1,5 @@
+taskManager:
+  replicas: 1   # ← für Skalierungsdemo später auf 3 erhöhen
+job:
+  jarURI: "local:///opt/flink/usrlib/job.jar"  # wenn als Jar gebündelt
+# Alternative: Python Job über entrypoint im Pod/ConfigMap starten
