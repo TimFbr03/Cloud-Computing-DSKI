@@ -255,3 +255,239 @@ Multi-Node Containerorchestrierung über k3s Kubernetis.
 ## Appendix - Github Actions
 Docker Container werden aus dem Code über Github-Actions in das Github Container Regestry (GHCR) gepusht.
 Jedes mal, wenn eine neue Version auf das Repository gepusht wird, wird die neue Version Containerisiert und auf das GHCR gepusht.
+
+## Aufgabe 5 - Stream Processing
+
+### Kafka-Cluster Konfiguration
+
+#### Kafka Values Configuration
+Die kafka-values.yaml definiert einen hochverfügbaren Kafka-Cluster mit automatischer Topic-Provisionierung:
+```yaml
+replicaCount: 3
+kraft:
+  enabled: true
+listeners:
+  client:
+    protocol: PLAINTEXT
+rbac:
+  create: true
+service:
+  type: ClusterIP
+provisioning:
+  enabled: true
+  topics:
+    - name: events
+      partitions: 3
+      replicationFactor: 3
+    - name: results
+      partitions: 3
+      replicationFactor: 3
+```
+Schlüsselmerkmale:
+- 3 Kafka Broker für Hochverfügbarkeit
+- Automatische Topic-Erstellung mit 3 Partitionen
+- Replication Factor 3 für Datensicherheit
+
+#### Installation
+Kafka Cluster installieren
+```shell
+helm install kafka bitnami/kafka -n stream -f kafka-values.yaml
+```
+
+### Data Producer Implementieren
+
+#### Producer Code (producer.py)
+```python
+import json, os, time, random
+from kafka import KafkaProducer
+
+bootstrap = os.getenv("KAFKA_BOOTSTRAP", "kafka.stream.svc.cluster.local:9092")
+topic = os.getenv("TOPIC", "events")
+producer = KafkaProducer(
+    bootstrap_servers=bootstrap, 
+    value_serializer=lambda v: json.dumps(v).encode()
+)
+
+i = 0
+while True:
+    msg = {
+        "id": i,
+        "sensor": random.choice(["A","B","C"]),
+        "value": round(random.uniform(0,100),2),
+        "ts": time.time()
+    }
+    producer.send(topic, msg)
+    i += 1
+    time.sleep(0.1)
+```
+Features:
+•	IoT-Sensor Simulation: Generiert Daten von 3 verschiedenen Sensoren (A, B, C)
+•	JSON-Serialisierung: Strukturierte Datenübertragung
+•	Konfigurierbare Parameter: Über Umgebungsvariablen
+•	Hoher Durchsatz: 10 Nachrichten/Sekunde
+
+#### Producer Deployment
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+  namespace: stream
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: producer } }
+  template:
+    metadata: { labels: { app: producer } }
+    spec:
+      containers:
+        - name: producer
+          image: <euer-registry>/stream-producer:latest
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: kafka.stream.svc.cluster.local:9092
+            - name: TOPIC
+              value: events
+```
+
+### Stream Processing mit PyFlink
+
+#### Flink Job Implmentation (job.py)
+```python
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.common.serialization import SimpleStringSchema
+from pyflink.datastream.connectors.kafka import KafkaSource, KafkaSink, KafkaRecordSerializationSchema
+import json
+
+# Execution Environment mit Parallelität konfigurieren
+env = StreamExecutionEnvironment.get_execution_environment()
+env.set_parallelism(3)  # Horizontal skalierbar
+
+# Kafka Source konfigurieren
+source = KafkaSource.builder() \
+    .set_bootstrap_servers("kafka.stream.svc.cluster.local:9092") \
+    .set_topics("events") \
+    .set_group_id("flink-consumer") \
+    .set_value_only_deserializer(SimpleStringSchema()) \
+    .build()
+
+ds = env.from_source(source, watermark_strategy=None, source_name="kafka")
+
+# JSON Parsing
+def parse(line):
+    d = json.loads(line)
+    return (d["sensor"], float(d["value"]))
+
+parsed = ds.map(parse)
+
+# Stream Processing Logic: Gleitender Durchschnitt
+from pyflink.datastream.functions import ReduceFunction
+
+class AvgReduce(ReduceFunction):
+    def reduce(self, a, b):
+        cnt = a[2] + b[2]
+        s = a[1] + b[1]
+        return (a[0], s, cnt)
+
+avg = (parsed
+       .key_by(lambda x: x[0])          # Nach Sensor gruppieren
+       .map(lambda x: (x[0], x[1], 1))  # (sensor, value, count)
+       .count_window(20)                # Fenster über 20 Elemente
+       .reduce(AvgReduce())             # Durchschnitt berechnen
+       .map(lambda x: json.dumps({      # Ergebnis formatieren
+           "sensor": x[0], 
+           "avg": round(x[1]/x[2],2)
+       })))
+
+# Kafka Sink konfigurieren
+sink = KafkaSink.builder() \
+    .set_bootstrap_servers("kafka.stream.svc.cluster.local:9092") \
+    .set_record_serializer(KafkaRecordSerializationSchema.builder() \
+        .set_topic("results") \
+        .set_value_serialization_schema(SimpleStringSchema()) \
+        .build()) \
+    .build()
+
+avg.sink_to(sink)
+env.execute("sensor-avg")
+```
+Stream Processing Features:
+•	Stateful Processing: Gleitender Durchschnitt über 20 Werte
+•	Keyed Streams: Separierte Verarbeitung pro Sensor
+•	Windowing: Count-basierte Fenster
+•	Parallelisierung: Konfigurierbare 
+
+### Horizontale Skalierbarkeit
+
+#### Kafka-Partitionierung
+Topic Details anzeigen
+```shell
+kubectl exec -it kafka-client -n stream -- kafka-topics.sh --describe --topic events --bootstrap-server kafka.stream.svc.cluster.local:9092
+```
+Ausgabe:
+```bash
+Topic: events   PartitionCount: 3   ReplicationFactor: 3
+Partition: 0    Leader: 1    Replicas: 1,2,0
+Partition: 1    Leader: 2    Replicas: 2,0,1  
+Partition: 2    Leader: 0    Replicas: 0,1,2
+```
+
+#### Producer Skalierung
+```shell
+# Mehrere Producer für höhere Last
+kubectl scale deployment producer -n stream --replicas=3
+
+# Load Balancing über Kafka-Partitionen
+kubectl get pods -l app=producer -n stream
+```
+
+### Deployment und Testing
+#### Vollständiges Deployment
+```shell
+# 1. Namespace erstellen
+kubectl create namespace stream
+
+# 2. Kafka installieren
+helm install kafka bitnami/kafka -n stream -f kafka-values.yaml
+
+# 3. Producer deployen
+kubectl apply -f producer-deployment.yaml
+
+# 4. Flink Job starten
+kubectl run flink-processor --image=python:3.9 -n stream -- sleep infinity
+kubectl exec -it flink-processor -n stream -- bash
+
+# Im Pod:
+pip install apache-flink kafka-python
+python job.py
+```
+#### Pipeline Testing
+Producer Test: 
+```shell
+# Test-Producer starten
+kubectl exec -it python-producer -n stream -- python producer.py
+```
+
+Consumer Test:
+```shell
+# Events Topic konsumieren
+kubectl exec -it kafka-client -n stream -- kafka-console-consumer.sh \
+  --bootstrap-server kafka.stream.svc.cluster.local:9092 \
+  --topic events --from-beginning
+
+# Results Topic konsumieren  
+kubectl exec -it kafka-client -n stream -- kafka-console-consumer.sh \
+  --bootstrap-server kafka.stream.svc.cluster.local:9092 \
+  --topic results --from-beginning
+```
+
+Erwartete Ausgabe:
+```bash
+Events Topic:
+{"id": 0, "sensor": "A", "value": 42.5, "ts": 1692709800.123}
+{"id": 1, "sensor": "B", "value": 78.1, "ts": 1692709801.456}
+{"id": 2, "sensor": "C", "value": 15.3, "ts": 1692709802.789}
+Results Topic:
+{"sensor": "A", "avg": 45.67}
+{"sensor": "B", "avg": 52.34}
+{"sensor": "C", "avg": 38.91}
+```
