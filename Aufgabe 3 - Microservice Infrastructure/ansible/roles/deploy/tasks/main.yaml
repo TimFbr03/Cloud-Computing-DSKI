@@ -96,20 +96,28 @@
   when: "'k3s_server' in group_names"
 
 # ==========================
-# Deploy Monitoring Chart
+# Deploy Monitoring Stack (kube-prometheus-stack)
 # ==========================
+- name: Add Prometheus Helm repo
+  shell: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
 - name: Create monitoring namespace
   shell: /usr/local/bin/k3s kubectl create namespace monitoring || true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
-- name: Deploy Monitoring Helm chart
+- name: Deploy kube-prometheus-stack
   shell: |
-    helm upgrade --install monitoring "/tmp/helm/monitoring" \
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
       --namespace monitoring \
       --create-namespace \
-      -f "/tmp/helm/monitoring/values.yaml"
+      --set grafana.service.type=NodePort \
+      --set grafana.service.nodePort=30090 \
+      --set grafana.adminPassword=admin123
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: helm_monitoring_result
@@ -121,16 +129,16 @@
 # ==========================
 # Wait for Grafana and Prometheus pods
 # ==========================
-- name: Wait for Grafana pods to be ready
+- name: Wait for Grafana pod to be ready
   shell: |
-    kubectl -n monitoring wait --for=condition=Ready pod -l app=grafana --timeout=300s
+    kubectl -n monitoring wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana,app.kubernetes.io/instance=monitoring --timeout=600s
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
 - name: Wait for Prometheus pods to be ready
   shell: |
-    kubectl -n monitoring wait --for=condition=Ready pod -l app=prometheus --timeout=300s
+    kubectl -n monitoring wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus --timeout=600s
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"

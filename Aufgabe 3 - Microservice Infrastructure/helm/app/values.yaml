@@ -6,6 +6,9 @@ backend:
   env:
     - name: DATABASE_URL
       value: "postgresql://todouser:todopass@database:5432/todoapp"
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3001"
 
 frontend:
   image: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
@@ -15,6 +18,9 @@ frontend:
   env:
     - name: REACT_APP_API_URL
       value: "http://backend/api"
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
 
 database:
   image: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
