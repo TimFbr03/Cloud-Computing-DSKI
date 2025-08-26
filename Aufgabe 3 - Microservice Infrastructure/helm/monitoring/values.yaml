@@ -1,0 +1,26 @@
+grafana:
+  enabled: true
+  adminUser: "admin"
+  adminPassword: "admin123"
+  service:
+    type: NodePort
+    port: 9090
+    targetPort: 3000
+    nodePort: 30090
+  ingress:
+    enabled: false
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus.monitoring.svc.cluster.local:9090
+          access: proxy
+          isDefault: true
+
+prometheus:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 9090

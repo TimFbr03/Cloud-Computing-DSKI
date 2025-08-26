@@ -1,0 +1,107 @@
+# ==========================
+# Monitoring Values
+# ==========================
+
+monitoring:
+  enabled: true
+  namespace: "monitoring"
+
+# ==========================
+# Services for your app
+# ==========================
+services:
+  backend:
+    image: "ghcr.io/timfbr03/cloud-computing-dski/backend:latest"
+    replicas: 2
+    containerPort: 3001
+    servicePort: 80
+    targetPort: 3001
+    env:
+      - name: DATABASE_URL
+        value: "postgresql://todouser:todopass@database:5432/todoapp"
+
+  frontend:
+    image: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
+    replicas: 2
+    containerPort: 3000
+    servicePort: 80
+    env:
+      - name: REACT_APP_API_URL
+        value: "http://backend/api"
+
+  database:
+    image: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
+    replicas: 1
+    containerPort: 5432
+    servicePort: 5432
+    env:
+      - name: POSTGRES_USER
+        value: "todouser"
+      - name: POSTGRES_PASSWORD
+        value: "todopass"
+      - name: POSTGRES_DB
+        value: "todoapp"
+      - name: POSTGRES_LISTEN_ADDRESSES
+        value: "*"
+
+# ==========================
+# Grafana Deployment
+# ==========================
+grafana:
+  enabled: true
+  adminUser: "admin"
+  adminPassword: "admin123"
+  service:
+    type: NodePort         # NodePort statt ClusterIP
+    port: 9090             # Externer Port
+    targetPort: 3000       # Container-Port bleibt 3000
+    nodePort: 30090
+  ingress:
+    enabled: false          # Kein Ingress nötig, Zugriff über NodePort
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+          access: proxy
+          isDefault: true
+
+# ==========================
+# Prometheus Deployment
+# ==========================
+prometheus:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 9090
+
+# ==========================
+# Ingress for App
+# ==========================
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: ""
+      paths:
+        - path: /api
+          pathType: Prefix
+        - path: /todo
+          pathType: Prefix
+
+# ==========================
+# Resources, probes, etc.
+# ==========================
+resources: {}
+livenessProbe:
+  httpGet:
+    path: /todo
+    port: http
+readinessProbe:
+  httpGet:
+    path: /todo
+    port: http

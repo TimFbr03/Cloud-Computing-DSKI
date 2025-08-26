@@ -1,4 +1,6 @@
+# ==========================
 # Install prerequisites
+# ==========================
 - name: Install prerequisites
   apt:
     name:
@@ -8,7 +10,9 @@
     update_cache: yes
     state: present
 
-# k3s server installation (run only on server)
+# ==========================
+# k3s server installation
+# ==========================
 - name: Install k3s server
   shell: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
   args:
@@ -37,41 +41,53 @@
   become: no
   when: "'k3s_server' in group_names"
 
+# ==========================
+# Helm installation
+# ==========================
 - name: Install Helm (server only)
   shell: curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
   args:
     creates: /usr/local/bin/helm
   when: "'k3s_server' in group_names"
 
-- name: Create namespace for Helm release
-  shell: /usr/local/bin/k3s kubectl create namespace "{{ helm_namespace }}" || true
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  when: "'k3s_server' in group_names"
-
-- name: Copy Helm chart to server
+# ==========================
+# Copy Helm charts to server
+# ==========================
+- name: Copy Helm charts to server
   copy:
     src: "{{ playbook_dir }}/../helm/"
-    dest: "{{ helm_chart_path }}/"
+    dest: "/tmp/helm"
     mode: '0644'
     remote_src: no
     directory_mode: '0755'
   when: "'k3s_server' in group_names"
 
-- name: Deploy multi-service Helm chart
-  shell: |
-    helm upgrade --install "{{ helm_release_name }}" "{{ helm_chart_path }}" \
-      --namespace "{{ helm_namespace }}" \
-      --create-namespace \
-      -f "{{ helm_chart_path }}/values.yaml"
+# ==========================
+# Deploy App Chart
+# ==========================
+- name: Create namespace for app
+  shell: /usr/local/bin/k3s kubectl create namespace microservices || true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  register: helm_result
-  retries: 5
-  delay: 30
-  until: helm_result.rc == 0
   when: "'k3s_server' in group_names"
 
+- name: Deploy App Helm chart
+  shell: |
+    helm upgrade --install "{{ helm_release_name }}" "/tmp/helm/app" \
+      --namespace microservices \
+      --create-namespace \
+      -f "/tmp/helm/app/values.yaml"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: helm_app_result
+  retries: 2
+  delay: 10
+  until: helm_app_result.rc == 0
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Install Nginx Ingress Controller
+# ==========================
 - name: Install Nginx Ingress Controller
   shell: |
     kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
@@ -79,6 +95,49 @@
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
+# ==========================
+# Deploy Monitoring Chart
+# ==========================
+- name: Create monitoring namespace
+  shell: /usr/local/bin/k3s kubectl create namespace monitoring || true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Deploy Monitoring Helm chart
+  shell: |
+    helm upgrade --install monitoring "/tmp/helm/monitoring" \
+      --namespace monitoring \
+      --create-namespace \
+      -f "/tmp/helm/monitoring/values.yaml"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: helm_monitoring_result
+  retries: 2
+  delay: 10
+  until: helm_monitoring_result.rc == 0
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Wait for Grafana and Prometheus pods
+# ==========================
+- name: Wait for Grafana pods to be ready
+  shell: |
+    kubectl -n monitoring wait --for=condition=Ready pod -l app=grafana --timeout=300s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Wait for Prometheus pods to be ready
+  shell: |
+    kubectl -n monitoring wait --for=condition=Ready pod -l app=prometheus --timeout=300s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# k3s agent installation
+# ==========================
 - name: Install k3s agent
   shell: |
     curl -sfL https://get.k3s.io | K3S_URL="https://{{ hostvars[groups['k3s_server'][0]].inventory_hostname }}:6443" \

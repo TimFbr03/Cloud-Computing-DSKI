@@ -39,7 +39,7 @@ resource "random_id" "cluster_id" {
 resource "openstack_compute_instance_v2" "k3s_server" {
   name = "k3s-${random_id.cluster_id.hex}-server"
   image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
-  flavor_name = "cb1.medium"
+  flavor_name = "mb1.large"
   key_pair    = "tfa_pub_key"
 
   network {
@@ -52,7 +52,7 @@ resource "openstack_compute_instance_v2" "k3s_worker" {
   count       = 2
   name  = "k3s-${random_id.cluster_id.hex}-agent-${count.index + 1}"
   image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
-  flavor_name = "cb1.medium"
+  flavor_name = "mb1.large"
   key_pair    = "tfa_pub_key"
 
   network {
