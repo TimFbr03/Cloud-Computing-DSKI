@@ -647,11 +647,9 @@ http://<node-ip>:30090
 - **Monitoring:** Prometheus + Grafana Stack
 - **Automation:** Terraform + Ansible Integration
 
-## Appendix - Github Actions
-Docker Container werden aus dem Code über Github-Actions in das Github Container Regestry (GHCR) gepusht.
-Jedes mal, wenn eine neue Version auf das Repository gepusht wird, wird die neue Version Containerisiert und auf das GHCR gepusht.
+## Aufgabe 4 - Data Lake / Big Data-Processing
 
-## Aufgabe 5 - Stream Processing
+## Aufgabe 5 - Big Data-Stream Processing
 
 ### Kafka-Cluster Konfiguration
 
@@ -886,3 +884,7 @@ Results Topic:
 {"sensor": "B", "avg": 52.34}
 {"sensor": "C", "avg": 38.91}
 ```
+
+## Anhang - Github Actions
+Docker Container werden aus dem Code über Github-Actions in das Github Container Regestry (GHCR) gepusht.
+Jedes mal, wenn eine neue Version auf das Repository gepusht wird, wird die neue Version Containerisiert und auf das GHCR gepusht.
