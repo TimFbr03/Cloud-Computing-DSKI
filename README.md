@@ -244,13 +244,408 @@ Dies ermöglicht:
 ### Infrastruktur-Versionierung & Rollback
 
 ## Aufgabe 3 - Microservice Infrastructure
-Multi-Node Containerorchestrierung über k3s Kubernetis.  
-- Deployment der Architektur über Terraform.  
-- Aufsetzen der Systemvariablen über Ansible.
-- k3s Containerorchestierung über Helm.
-  - Netzwerkinfrastruktur durch Nginx-Ingress.
+Das Ziel der dritten Aufgabe ist die Bereitstellung einer Multi-Node-Kubernetes-Infrastruktur mit containerisierten, skalierbaren Microservices und integriertem Monitoring.  
+  
+### Architekturüberblick
+Die implementierte Lösung besteht aus mehreren Komponenten:
 
-### Terraform Deployment
+- **Terraform:** Bereitstellung der OpenStack-Infrastruktur
+- **Ansible:** Automatische Konfiguration und Deployment
+- **k3s:** Leichtgewichtige Kubernetes-Distribution
+- **Helm:** Package-Management für Kubernetes-Anwendungen
+- **Nginx Ingress:** Externe Erreichbarkeit der Services
+- **Prometheus/Grafana:** Monitoring und Observability
+
+### Technologiewahl und Begründung
+**k3s als Kubernetes-Distribution**  
+Für die Kubernetes-Umgebung wurde k3s gewählt, eine leichtgewichtige, CNCF-zertifizierte Kubernetes-Distribution:  
+  
+Vorteile:
+
+- Minimaler Ressourcenverbrauch (ideal für Cloud-Umgebungen)
+- Einfache Installation und Wartung
+- Integrierter Container Runtime (containerd)
+- Built-in Load Balancer und Storage Provider
+- Single Binary Installation
+- Automatisches TLS-Management
+
+**Alternativen und Bewertung:**
+
+- kubeadm: Komplexer zu installieren, höherer Overhead 
+- Rancher RKE: Mehr Enterprise-Features, aber höhere Komplexität
+- Managed Services (EKS/GKE): Nicht verfügbar in OpenStack-Umgebung
+
+### Infrastruktur-Deployment mit Terraform
+**Multi-Node Cluster Setup**  
+```bash
+resource "openstack_compute_instance_v2" "k3s_server" {
+  name = "k3s-${random_id.cluster_id.hex}-server"
+  image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
+  flavor_name = "mb1.large"
+  key_pair    = "tfa_pub_key"
+
+  network {
+    name = "DHBW"
+  }
+}
+
+# Kubernetes Worker Nodes
+resource "openstack_compute_instance_v2" "k3s_worker" {
+  count       = 2
+  name  = "k3s-${random_id.cluster_id.hex}-agent-${count.index + 1}"
+  image_id    = "f445d5f0-e9a6-4e09-b3c4-7e6607aea9fb"
+  flavor_name = "mb1.large"
+  key_pair    = "tfa_pub_key"
+
+  network {
+    name = "DHBW"
+  }
+}
+```
+
+**Cluster-Architektur:**  
+
+- **1x Control Plane Node:** Verwaltet die Kubernetes API, etcd, Scheduler
+- **2x Worker Nodes:** Führen die Anwendungs-Pods aus
+- **Automatische Inventar-Generierung:** Terraform erstellt dynamisch die Ansible-Inventory
+
+**Automatische Provisionierung**
+```bash
+resource "null_resource" "ansible_provisioner" {
+  depends_on = [
+    openstack_compute_instance_v2.k3s_server,
+    openstack_compute_instance_v2.k3s_worker,
+    local_file.inventory_ini
+  ]
+
+  provisioner "local-exec" {
+    command = "sleep 60 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml"
+  }
+}
+```
+
+### Kubernetes-Cluster Installation mit Ansible
+**k3s Server Installation**
+Das Ansible-Playbook installiert zuerst den k3s-Server (Control Plane):  
+```yaml
+- name: Install k3s server
+  shell: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+  args:
+    creates: /usr/local/bin/k3s
+  when: "'k3s_server' in group_names"
+
+- name: Wait for k3s server to be ready
+  shell: k3s kubectl get node
+  register: k3s_status
+  retries: 10
+  delay: 30
+  until: k3s_status.rc == 0
+  when: "'k3s_server' in group_names"
+```
+
+**Token-Management für Worker-Nodes**
+```yaml
+- name: Save node token for agents
+  command: cat /var/lib/rancher/k3s/server/node-token
+  register: node_token
+  when: "'k3s_server' in group_names"
+
+- name: Copy token to localhost
+  copy:
+    content: "{{ node_token.stdout }}"
+    dest: "./node-token"
+    mode: '0600'
+  delegate_to: localhost
+  become: no
+  when: "'k3s_server' in group_names"
+```
+
+### Containerisierte Anwendung
+**Microservice-Architektur**
+Die Anwendung besteht aus drei containerisierten Services:
+
+1. **Frontend (React):** Benutzeroberfläche
+2. **Backend (Node.js/Express):** REST API
+3. **Database (PostgreSQL):** Datenpersistierung
+
+### Container-Images
+ Alle Services werden aus dem GitHub Container Registry (GHCR) deployed:
+
+ ```yaml
+ghcr_images:
+  backend: "ghcr.io/timfbr03/cloud-computing-dski/backend:latest"
+  frontend: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
+  database: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
+ ```
+
+### Dockerfile-Strategien
+**Frontend (Multi-Stage Build):**
+```Dockerfile
+# Build Stage
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --silent
+COPY . .
+RUN npm run build
+
+# Production Stage
+FROM nginx:alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+```
+  
+**Backend (Production-optimiert):**
+```Dockerfile
+FROM node:18-alpine
+RUN apk add --no-cache make gcc g++ python3 libc6-compat
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --only=production --no-optional
+COPY . .
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+CMD ["npm", "start"]
+```
+
+### Kubernetes-Konfigurationen mit Helm
+
+**Helm Chart Struktur**  
+```
+helm/
+├── app/
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/
+│       ├── backend-deployment.yaml
+│       ├── backend-service.yaml
+│       ├── frontend-deployment.yaml
+│       ├── frontend-service.yaml
+│       ├── database-deployment.yaml
+│       ├── database-service.yaml
+│       └── ingress.yaml
+```
+### Deployment Konfiguration
+**Backend-Deployment:**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: {{ .Values.backend.image }}
+          ports:
+            - containerPort: {{ .Values.backend.containerPort }}
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://todouser:todopass@database:5432/todoapp"
+```
+
+**Service-Konfiguration**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 80
+      targetPort: 3001
+      protocol: TCP
+```
+
+**Helm Values für Skalierbarkeit**
+```yaml
+backend:
+  image: "ghcr.io/timfbr03/cloud-computing-dski/backend:latest"
+  replicas: 2
+  containerPort: 3001
+  servicePort: 80
+
+frontend:
+  image: "ghcr.io/timfbr03/cloud-computing-dski/frontend:latest"
+  replicas: 2
+  containerPort: 3000
+  servicePort: 80
+
+database:
+  image: "ghcr.io/timfbr03/cloud-computing-dski/database:latest"
+  replicas: 1
+  containerPort: 5432
+  servicePort: 5432
+```
+
+### Externe Erreichbarkeit mit Nginx Ingress
+**Ingress Installation**
+```yaml
+- name: Install Nginx Ingress Controller
+  shell: |
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+```
+
+**Ingress-Konfiguration**
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-ingress
+  namespace: microservices
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ""  # catch-all
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80
+          - path: /(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+```
+
+Routing Logik:
+- `/api/*` $\rightarrow$ Backend Service (*Rest API*) 
+- `/*` $\rightarrow$ Frontend Service (*React SPA*)
+
+### Versionierung und Deployment-Strategien
+**Container-Versionierung**
+GitHub Container Registry Tags:
+```bash
+ghcr.io/timfbr03/cloud-computing-dski/backend:latest
+ghcr.io/timfbr03/cloud-computing-dski/backend:v1.0.0
+ghcr.io/timfbr03/cloud-computing-dski/backend:v1.1.0
+```
+### Update- und Rollback-Strategien
+
+
+**Konzept der Unveränderlichkeit**  
+Im Gegensatz zu traditionellen In-Place-Updates folgt diese Infrastruktur dem **Immutable Infrastructure**-Prinzip:  
+- **Keine direkten Änderungen:** Bestehende Instanzen werden niemals modifiziert
+- **Replace statt Update:** Jede Änderung führt zur Neuerstellung der gesamten Infrastruktur
+- **Atomare Deployments:** Entweder vollständiger Erfolg oder vollständiger Rollback
+- **Konsistente Umgebungen:** Eliminiert Configuration Drift und "Snowflake Servers"
+
+**Immutable Update**  
+**Phase 1** - Destroy (Alte Infratruktur entfernen)  
+```bash
+terraform destroy --auto-approve
+```
+- Alle OpenStack-Instanzen werden terminiert
+- Kubernetes-Cluster wird vollständig entfernt
+- Keine Datenrettung - true Immutable Approach 
+
+**Phase 2** - Recreate (Neue Infrastruktur erstellen)
+```bash
+terraform apply --auto-approve
+```
+- Neue Instanzen mit aktueller Konfiguration
+- Automatische Ansible-Provisionierung
+- Frisches k3s-Cluster mit neuen Versionen
+
+**Rollback Strategie**  
+Git-basiertes Rollback
+
+#### 1. **Kofigurationsstand zurücksetzen:**
+```bash
+# Zur letzten funktionierenden Version
+git checkout HEAD~1
+
+# Oder zu spezifischem Tag
+git checkout v1.5.0
+```
+
+#### 2. **Infrastruktur neu aufsetzen**
+```bash
+terraform destroy --auto-approve
+terraform apply --auto-approve
+```
+
+**Direkte Version-Spezifikation**
+```yaml
+# Explizites Rollback auf bekannte funktionierende Versionen
+ghcr_images:
+  backend: "ghcr.io/timfbr03/cloud-computing-dski/backend:v1.5.2"   # Rollback
+  frontend: "ghcr.io/timfbr03/cloud-computing-dski/frontend:v1.5.2"  # Rollback
+```
+
+### Performance-Monitoring mit Prometheus und Grafana 
+**Monitoring-Stack Deployment**
+```yaml
+- name: Add Prometheus Helm repo
+  shell: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && helm repo update
+  
+- name: Deploy kube-prometheus-stack
+  shell: |
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+      --namespace monitoring \
+      --create-namespace \
+      --set grafana.service.type=NodePort \
+      --set grafana.service.nodePort=30090 \
+      --set grafana.adminPassword=admin123
+```
+
+**Prometheus-Konfiguration**
+Service Discovery:
+```yaml
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    scrapeInterval: "15s"
+```
+
+**Grafana Dashboard-Zugriff**
+```bash
+# Grafana über NodePort erreichbar
+http://<node-ip>:30090
+# Login: admin / admin123
+```
+
+### Monitoring-Metriken
+**Verfügbare Metriken:**
+
+- Container CPU/Memory Usage
+- Pod Restart Counts
+- Network I/O
+- Database Connection Pool Status
+
+### Zusammenfassung und Bewertung
+- **Multi-Node Kubernetes:** k3s-Cluster mit 1 Master + 2 Worker
+  - k3s als "*lightweight*" Kubernetis Cluster 
+- **Containerisierung:** 3-Tier Microservice-Architektur
+- **Versionierung:** GHCR mit semantischer Versionierung
+- **Skalierbarkeit:** Helm-basierte Replica-Konfiguration
+- **Externe Erreichbarkeit:** Nginx Ingress Controller
+- **Monitoring:** Prometheus + Grafana Stack
+- **Automation:** Terraform + Ansible Integration
 
 ## Appendix - Github Actions
 Docker Container werden aus dem Code über Github-Actions in das Github Container Regestry (GHCR) gepusht.
