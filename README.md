@@ -4,6 +4,8 @@
 1. [Aufgabe 1 - Immutable Infrastructure](#aufgabe-1---immutable-infrastructure)  
 2. [Aufgabe 2 - Configuration Management und Deployment](#aufgabe-2---configuration-management-und-deployment)
 3. [Aufgabe 3 - Microservice Infrastructure](#aufgabe-3---microservice-infrastructure)
+4. [Aufgabe 4 - Data Lake / Big Data-Processing](#aufgabe-4---data-lake--big-data-processing)
+5. [Aufgabe 5 - Big Data-Stream Processing](#aufgabe-5---big-data-stream-processing)
 
 ## Aufgabe 1 - Immutable Infrastructure
 Ziel der ersten Aufgabe ist es, eine Immutable Infrastructure bereitzustellen. 
