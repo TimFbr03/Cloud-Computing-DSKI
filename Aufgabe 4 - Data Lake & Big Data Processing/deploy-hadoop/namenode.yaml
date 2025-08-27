@@ -1,0 +1,78 @@
+# namenode.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hadoop-namenode
+  namespace: hadoop-cluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hadoop-namenode
+  template:
+    metadata:
+      labels:
+        app: hadoop-namenode
+    spec:
+      containers:
+        - name: namenode
+          image: apache/hadoop:3
+          command: ["/opt/hadoop/bin/hdfs"]
+          args: ["namenode"]
+          env:
+            - name: CLUSTER_NAME
+              value: "hadoop-cluster"
+          ports:
+            - containerPort: 9000
+            - containerPort: 9870
+          volumeMounts:
+            - name: hadoop-config
+              mountPath: /opt/hadoop/etc/hadoop
+            - name: namenode-data
+              mountPath: /hadoop/dfs/name
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+      volumes:
+        - name: hadoop-config
+          configMap:
+            name: hadoop-config
+        - name: namenode-data
+          persistentVolumeClaim:
+            claimName: namenode-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: namenode-pvc
+  namespace: hadoop-cluster
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: hadoop-storage
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hadoop-namenode
+  namespace: hadoop-cluster
+spec:
+  type: ClusterIP
+  selector:
+    app: hadoop-namenode
+  ports:
+    - name: rpc
+      port: 9000
+      targetPort: 9000
+    - name: http
+      port: 9870
+      targetPort: 9870

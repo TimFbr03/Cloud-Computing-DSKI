@@ -1,0 +1,73 @@
+# datanode.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hadoop-datanode
+  namespace: hadoop-cluster
+spec:
+  serviceName: hadoop-datanode
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hadoop-datanode
+  template:
+    metadata:
+      labels:
+        app: hadoop-datanode
+    spec:
+      containers:
+        - name: datanode
+          image: apache/hadoop:3
+          command: ["/opt/hadoop/bin/hdfs"]
+          args: ["datanode"]
+          ports:
+            - containerPort: 9864
+            - containerPort: 9866
+            - containerPort: 9867
+          volumeMounts:
+            - name: hadoop-config
+              mountPath: /opt/hadoop/etc/hadoop
+            - name: datanode-data
+              mountPath: /hadoop/dfs/data
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+      volumes:
+        - name: hadoop-config
+          configMap:
+            name: hadoop-config
+  volumeClaimTemplates:
+    - metadata:
+        name: datanode-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: hadoop-storage
+        resources:
+          requests:
+            storage: 50Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hadoop-datanode
+  namespace: hadoop-cluster
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: hadoop-datanode
+  ports:
+    - name: http
+      port: 9864
+      targetPort: 9864
+    - name: data
+      port: 9866
+      targetPort: 9866
+    - name: ipc
+      port: 9867
+      targetPort: 9867
