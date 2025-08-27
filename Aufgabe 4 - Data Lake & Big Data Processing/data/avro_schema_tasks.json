@@ -1,0 +1,33 @@
+{
+  "type": "record",
+  "name": "Task",
+  "namespace": "com.example.tasks",
+  "doc": "Schema for task management records",
+  "fields": [
+    {
+      "name": "title",
+      "type": "string",
+      "doc": "Task title"
+    },
+    {
+      "name": "description", 
+      "type": "string",
+      "doc": "Detailed task description"
+    },
+    {
+      "name": "completed",
+      "type": "boolean",
+      "doc": "Task completion status"
+    },
+    {
+      "name": "deleted",
+      "type": "boolean", 
+      "doc": "Task deletion status"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "doc": "User identifier who owns the task"
+    }
+  ]
+}

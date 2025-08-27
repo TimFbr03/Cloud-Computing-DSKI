@@ -1,0 +1,122 @@
+{
+  "schema": {
+    "type": "record",
+    "name": "Task",
+    "namespace": "com.example.tasks",
+    "doc": "Schema for task management records",
+    "fields": [
+      {"name": "title", "type": "string", "doc": "Task title"},
+      {"name": "description", "type": "string", "doc": "Detailed task description"},
+      {"name": "completed", "type": "boolean", "doc": "Task completion status"},
+      {"name": "deleted", "type": "boolean", "doc": "Task deletion status"},
+      {"name": "user_id", "type": "string", "doc": "User identifier who owns the task"}
+    ]
+  },
+  "records": [
+    {
+      "title": "Implementierung der neuen Benutzerauthentifizierung",
+      "description": "Entwicklung und Integration eines OAuth 2.0-basierten Authentifizierungssystems mit Multi-Faktor-Authentifizierung. Das System muss LDAP-Integration unterstützen, sichere Token-Verwaltung implementieren und mit bestehenden Legacy-Systemen kompatibel sein. Zusätzlich sind umfangreiche Tests und Dokumentation erforderlich.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "dev_001"
+    },
+    {
+      "title": "Migration der Kundendatenbank zu PostgreSQL",
+      "description": "Vollständige Migration von 2,5 Millionen Kundendatensätzen von Oracle zu PostgreSQL. Umfasst Datenvalidierung, Performance-Optimierung, Index-Erstellung und Backup-Strategien. Downtime muss minimiert werden durch Rolling-Update-Verfahren. Rollback-Plan und Monitoring sind essentiell.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "dba_003"
+    },
+    {
+      "title": "Entwicklung der mobilen App für iOS und Android",
+      "description": "Cross-Platform-Entwicklung einer nativen mobilen Anwendung mit React Native. Features umfassen Offline-Synchronisation, Push-Notifications, Biometrische Authentifizierung, Kamera-Integration und GPS-Tracking. App Store und Google Play Store Submission inklusive.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "mobile_dev_007"
+    },
+    {
+      "title": "Implementierung von Elasticsearch für Volltextsuche",
+      "description": "Setup und Konfiguration eines Elasticsearch-Clusters für die Produktsuche. Indexierung von 10 Millionen Produktdatensätzen mit komplexen Filtern, Auto-Completion, Faceted Search und Relevanz-Scoring. Performance-Tests und Skalierungsstrategien sind Teil des Projekts.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "backend_dev_012"
+    },
+    {
+      "title": "Redesign des Admin-Dashboards",
+      "description": "Komplette Überarbeitung der Administrationsoberfläche mit modernem UI/UX-Design. Implementierung von Data Visualisierung mit D3.js, responsivem Design, Dark Mode und Accessibility-Standards. User Testing und iterative Verbesserungen sind eingeplant.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "frontend_dev_005"
+    },
+    {
+      "title": "Einführung von Containerisierung mit Docker/Kubernetes",
+      "description": "Containerisierung aller Microservices und Migration zu Kubernetes-Orchestrierung. Setup von CI/CD-Pipelines, Helm Charts, Service Mesh mit Istio, Monitoring mit Prometheus und Grafana. Schulung des DevOps-Teams ist enthalten.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "devops_eng_009"
+    },
+    {
+      "title": "Implementierung von Machine Learning Empfehlungssystem",
+      "description": "Entwicklung eines kollaborativen Filtering-Algorithmus für personalisierte Produktempfehlungen. Training mit 50 Millionen Interaktionsdaten, A/B-Testing verschiedener Modelle, Real-time Inference mit Apache Kafka und MLflow für Model Management.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "ml_eng_015"
+    },
+    {
+      "title": "Security Audit und Penetration Testing",
+      "description": "Umfassende Sicherheitsanalyse aller Systemkomponenten durch externe Sicherheitsexperten. Vulnerability Assessment, Code Review, Infrastructure Security Testing und Compliance-Prüfung nach ISO 27001 Standards. Remediation-Plan und Follow-up Testing inklusive.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "sec_analyst_018"
+    },
+    {
+      "title": "Data Warehouse Modernisierung",
+      "description": "Migration des bestehenden Data Warehouses zu einer modernen Cloud-basierten Lösung mit Snowflake. ETL-Pipeline-Optimierung, Datenqualitäts-Monitoring, Dimensional Modeling und Self-Service Analytics für Business User. Performance-Verbesserung um 300% angestrebt.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "data_eng_021"
+    },
+    {
+      "title": "Implementierung von Real-time Analytics Dashboard",
+      "description": "Entwicklung eines Echtzeit-Analytics-Dashboards mit Apache Kafka, Apache Spark Streaming und Redis. Verarbeitung von 1 Million Events pro Sekunde, Complex Event Processing, Anomalie-Erkennung und automatische Alerting-Mechanismen.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "data_sci_024"
+    },
+    {
+      "title": "Legacy Code Refactoring",
+      "description": "Systematisches Refactoring von 200.000 Zeilen Legacy-Code in Java. Modernisierung zu Spring Boot, Implementierung von Unit Tests mit 90% Code Coverage, Design Pattern Anwendung und Performance-Optimierung. Code Quality Gates mit SonarQube.",
+      "completed": false,
+      "deleted": true,
+      "user_id": "senior_dev_006"
+    },
+    {
+      "title": "Blockchain-basiertes Identitätsmanagement",
+      "description": "Proof of Concept für dezentrales Identitätsmanagement mit Ethereum Smart Contracts. Implementierung von Self-Sovereign Identity, Zero-Knowledge Proofs, IPFS für Dokumentenspeicherung und Web3-Integration. Regulatory Compliance und Privacy-by-Design.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "blockchain_dev_027"
+    },
+    {
+      "title": "Automatisierte Testing-Pipeline",
+      "description": "Aufbau einer vollautomatisierten Testing-Pipeline mit Selenium, Cypress, Jest und TestContainers. Integration Testing, End-to-End Testing, Performance Testing mit JMeter und Visual Regression Testing. Parallel Test Execution und Test Result Analytics.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "qa_eng_030"
+    },
+    {
+      "title": "Multi-Cloud Disaster Recovery System",
+      "description": "Implementierung einer Multi-Cloud Disaster Recovery Lösung mit AWS, Azure und GCP. RTO von 15 Minuten, RPO von 1 Minute, automatisches Failover, Cross-Region Replication und Disaster Recovery Testing. Compliance mit Tier 3 Standards.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "cloud_arch_033"
+    },
+    {
+      "title": "IoT-Datenverarbeitungsplattform",
+      "description": "Entwicklung einer skalierbaren IoT-Plattform für 100.000 Sensoren mit MQTT, Time Series Database (InfluxDB), Edge Computing mit Apache NiFi und Predictive Maintenance Algorithmen. Real-time Dashboards und Alert-Systeme inklusive.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "iot_dev_036"
+    }
+  ]
+}

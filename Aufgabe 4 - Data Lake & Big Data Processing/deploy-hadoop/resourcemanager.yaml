@@ -1,0 +1,68 @@
+# resourcemanager.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hadoop-resourcemanager
+  namespace: hadoop-cluster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hadoop-resourcemanager
+  template:
+    metadata:
+      labels:
+        app: hadoop-resourcemanager
+    spec:
+      containers:
+        - name: resourcemanager
+          image: apache/hadoop:3
+          command: ["/opt/hadoop/bin/yarn"]
+          args: ["resourcemanager"]
+          ports:
+            - containerPort: 8088
+            - containerPort: 8030
+            - containerPort: 8031
+            - containerPort: 8032
+            - containerPort: 8033
+          volumeMounts:
+            - name: hadoop-config
+              mountPath: /opt/hadoop/etc/hadoop
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+      volumes:
+        - name: hadoop-config
+          configMap:
+            name: hadoop-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hadoop-resourcemanager
+  namespace: hadoop-cluster
+spec:
+  type: ClusterIP
+  selector:
+    app: hadoop-resourcemanager
+  ports:
+    - name: web
+      port: 8088
+      targetPort: 8088
+    - name: scheduler
+      port: 8030
+      targetPort: 8030
+    - name: tracker
+      port: 8031
+      targetPort: 8031
+    - name: resource-tracker
+      port: 8032
+      targetPort: 8032
+    - name: admin
+      port: 8033
+      targetPort: 8033

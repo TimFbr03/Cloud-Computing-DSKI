@@ -1,0 +1,122 @@
+{
+  "schema": {
+    "type": "record",
+    "name": "Task",
+    "namespace": "com.example.tasks",
+    "doc": "Schema for task management records",
+    "fields": [
+      {"name": "title", "type": "string", "doc": "Task title"},
+      {"name": "description", "type": "string", "doc": "Detailed task description"},
+      {"name": "completed", "type": "boolean", "doc": "Task completion status"},
+      {"name": "deleted", "type": "boolean", "doc": "Task deletion status"},
+      {"name": "user_id", "type": "string", "doc": "User identifier who owns the task"}
+    ]
+  },
+  "records": [
+    {
+      "title": "Quantencomputing-Algorithmen für Optimierungsprobleme",
+      "description": "Erforschung und Implementierung von Quantum Annealing Algorithmen zur Lösung komplexer Optimierungsprobleme in der Logistik. Verwendung von IBM Qiskit und D-Wave Systems für Prototypentwicklung. Vergleichsstudien zwischen klassischen und quantenbasierten Ansätzen mit 1000+ Testfällen verschiedener Komplexitätsgrade.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "quantum_researcher_041"
+    },
+    {
+      "title": "Neuromorphe Chips für Edge AI Computing",
+      "description": "Entwicklung spezialisierter neuromorpher Prozessorarchitekturen für energieeffiziente KI-Inferenz am Edge. Implementierung von Spiking Neural Networks, Event-driven Processing und Ultra-low-power Design. Prototyping mit Intel Loihi und SpiNNaker Plattformen. Ziel: 1000x Energieeinsparung gegenüber traditionellen GPUs.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "hardware_researcher_044"
+    },
+    {
+      "title": "Federated Learning für medizinische Bildanalyse",
+      "description": "Entwicklung eines dezentralen Machine Learning Systems für die Analyse medizinischer Bilddaten unter Wahrung der Patientenprivatsphäre. Implementierung von Differential Privacy, Homomorphic Encryption und Secure Multi-party Computation. Kooperation mit 15 Kliniken europaweit für Datenvalidierung ohne Datenaustausch.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "ml_researcher_047"
+    },
+    {
+      "title": "Autonome Drohnen-Schwärme für Umweltmonitoring",
+      "description": "Forschung zur Koordination autonomer Drohnenschwärme für großflächiges Umweltmonitoring in schwer zugänglichen Gebieten. Implementierung von Swarm Intelligence Algorithmen, Computer Vision für Objekterkennung, LoRa-basierte Kommunikation und Solar-powered Energiesysteme. Feldtests in Amazonas-Region geplant.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "robotics_researcher_050"
+    },
+    {
+      "title": "Blockchain-Skalierung durch Layer-2 Lösungen",
+      "description": "Entwicklung innovativer Layer-2 Skalierungslösungen für Ethereum mit State Channels, Plasma und zk-SNARKs. Implementierung von Optimistic Rollups mit Custom Virtual Machine, Cross-chain Interoperability und MEV-resistente Transaction Ordering. Throughput-Ziel: 100.000 TPS bei Sub-Second Finality.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "blockchain_researcher_053"
+    },
+    {
+      "title": "Generative AI für Proteinstruktur-Vorhersage",
+      "description": "Anwendung von Transformer-Architekturen und Diffusion Models für die Vorhersage von Proteinstrukturen und -funktionen. Training mit AlphaFold-Datenbank, Integration von evolutionären Informationen und experimenteller Validierung durch Kooperationspartner. Potenzial für Medikamentenentwicklung und synthetische Biologie.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "bio_ai_researcher_056"
+    },
+    {
+      "title": "Augmented Reality für industrielle Wartung",
+      "description": "Entwicklung einer AR-Plattform für komplexe Industrieanlagen-Wartung mit Mixed Reality Guidance, Predictive Maintenance Integration und Remote Expert Support. Verwendung von HoloLens, Magic Leap und Custom SLAM Algorithmen. IoT-Sensor-Integration für Real-time Maschinendaten-Overlay und Schritt-für-Schritt Reparaturanleitungen.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "ar_researcher_059"
+    },
+    {
+      "title": "Sustainable Computing durch organische Halbleiter",
+      "description": "Grundlagenforschung zu organischen Transistoren und Speicherelementen als umweltfreundliche Alternative zu Silizium-basierten Chips. Synthese neuer konjugierter Polymere, Charakterisierung durch AFM/STM, Fabrication von Flexible Electronics und Biodegradability Studies. Ziel: Vollständig kompostierbare Elektronik.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "materials_researcher_062"
+    },
+    {
+      "title": "Cognitive Radio Networks für 6G",
+      "description": "Erforschung intelligenter Funknetze der nächsten Generation mit dynamischer Spektrumszuweisung, Machine Learning-basierter Interferenzvermeidung und Terahertz-Kommunikation. Implementierung von Massive MIMO, Beamforming-Algorithmen und Network Slicing für ultra-niedrige Latenz. Prototyping mit Software Defined Radio (SDR) Plattformen.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "comm_researcher_065"
+    },
+    {
+      "title": "Digital Twin für Smart Cities",
+      "description": "Entwicklung eines umfassenden digitalen Zwillings für Stadtplanung und -management mit Real-time Simulation von Verkehrsflüssen, Energieverbrauch, Luftqualität und sozialen Dynamiken. Integration von IoT-Sensordaten, Satellitendaten, Social Media Analytics und Crowd-sourced Information für predictive Urban Planning.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "urban_researcher_068"
+    },
+    {
+      "title": "Quantum Machine Learning Algorithmen",
+      "description": "Entwicklung hybrider klassisch-quantenbasierter Machine Learning Algorithmen mit Variational Quantum Eigensolver (VQE) und Quantum Approximate Optimization Algorithm (QAOA). Anwendung auf Portfoliooptimierung, Medikamentendesign und Klimamodellierung. Benchmarking gegen klassische ML-Verfahren auf NISQ-Geräten.",
+      "completed": false,
+      "deleted": true,
+      "user_id": "quantum_ml_researcher_071"
+    },
+    {
+      "title": "Brain-Computer Interface für Paraplegiker",
+      "description": "Entwicklung nicht-invasiver BCI-Systeme zur Steuerung von Exoskeletten und Rollstühlen durch Gedankenkraft. EEG-Signal-Verarbeitung mit Deep Learning, Real-time Feature Extraction, Adaptive Kalibrierung und Feedback-Systeme. Klinische Studien mit 50 Probanden zur Validierung der Alltagstauglichkeit.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "neurotechnology_researcher_074"
+    },
+    {
+      "title": "Photonic Neural Networks für KI-Beschleunigung",
+      "description": "Forschung zu optischen Neural Network Accelerators mit Silicon Photonics, Mach-Zehnder Interferometern und Photodetector Arrays. Implementierung von Convolutional Networks in optischer Hardware, Wavelength Division Multiplexing für Parallelverarbeitung und Integration mit elektronischen Systemen. Ziel: 1000x Geschwindigkeitssteigerung bei 100x weniger Energieverbrauch.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "photonic_researcher_077"
+    },
+    {
+      "title": "Molecular Storage Systems für Datenarchivierung",
+      "description": "Entwicklung DNA-basierter Datenspeichersysteme für ultra-langfristige Archivierung mit Encoding-Algorithmen für Fehlerkorrektur, enzymatische Random Access Methoden und Automated DNA Synthesis/Sequencing Pipelines. Demonstration mit 1 Exabyte Speicherkapazität in wenigen Gramm biologischen Materials.",
+      "completed": false,
+      "deleted": false,
+      "user_id": "bio_storage_researcher_080"
+    },
+    {
+      "title": "Atmospheric CO2 Capture durch Engineered Algae",
+      "description": "Synthetic Biology Ansatz zur Entwicklung genetisch modifizierter Mikroalgen für effiziente CO2-Fixierung aus der Atmosphäre. CRISPR-Cas9 Gene Editing, Metabolic Engineering für erhöhte Biomasse-Produktion, Photobioreactor-Design und Life Cycle Assessment. Skalierung auf industrielle Anwendung für Carbon Negative Technologies.",
+      "completed": true,
+      "deleted": false,
+      "user_id": "synbio_researcher_083"
+    }
+  ]
+}
