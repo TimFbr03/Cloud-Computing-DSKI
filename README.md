@@ -832,7 +832,7 @@ Als Vorlage für die zu erstellenden Datensätze dient die `init.sql` aus _Aufga
 | description | _string_ |
 | completed | _boolean_ |
 | deleted | _boolean_ |
-| user*id | \_string* |
+| user_id | _string_ |
 
 Die Generierung erfolgt mit _ClaudeAI_ und liefert zwei Datensätze:
 
