@@ -1,0 +1,54 @@
+# nodemanager.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hadoop-nodemanager
+  namespace: hadoop-cluster
+spec:
+  serviceName: hadoop-nodemanager
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hadoop-nodemanager
+  template:
+    metadata:
+      labels:
+        app: hadoop-nodemanager
+    spec:
+      containers:
+        - name: nodemanager
+          image: apache/hadoop:3
+          command: ["/opt/hadoop/bin/yarn"]
+          args: ["nodemanager"]
+          ports:
+            - containerPort: 8042
+          volumeMounts:
+            - name: hadoop-config
+              mountPath: /opt/hadoop/etc/hadoop
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+      volumes:
+        - name: hadoop-config
+          configMap:
+            name: hadoop-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hadoop-nodemanager
+  namespace: hadoop-cluster
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: hadoop-nodemanager
+  ports:
+    - name: web
+      port: 8042
+      targetPort: 8042

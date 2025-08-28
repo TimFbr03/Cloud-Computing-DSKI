@@ -1,0 +1,127 @@
+# values.yaml für data_lake Helm-Chart
+
+namespace:
+  name: hadoop-cluster
+
+storage:
+  className: hadoop-storage
+  provisioner: kubernetes.io/no-provisioner
+  volumeBindingMode: WaitForFirstConsumer
+  reclaimPolicy: Retain
+
+namenode:
+  enabled: true
+  replicas: 1
+  image: apache/hadoop:3
+  service:
+    name: hadoop-namenode
+    ports:
+      rpc: 9000
+      http: 9870
+  pvc:
+    storage: 10Gi
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+datanode:
+  enabled: true
+  replicas: 3
+  image: apache/hadoop:3
+  service:
+    name: hadoop-datanode
+    ports:
+      http: 9864
+      data: 9866
+      ipc: 9867
+  pvc:
+    storage: 50Gi
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+resourcemanager:
+  enabled: true
+  replicas: 1
+  image: apache/hadoop:3
+  service:
+    name: hadoop-resourcemanager
+    ports:
+      web: 8088
+      scheduler: 8030
+      tracker: 8031
+      resourceTracker: 8032
+      admin: 8033
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+nodemanager:
+  enabled: true
+  replicas: 3
+  image: apache/hadoop:3
+  service:
+    name: hadoop-nodemanager
+    ports:
+      web: 8042
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+sparkJob:
+  enabled: true
+  image: bitnami/spark:3.4
+  scriptName: process_tasks.py
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  backoffLimit: 3
+
+sparkHistoryServer:
+  enabled: true
+  replicas: 1
+  image: bitnami/spark:3.4
+  service:
+    name: spark-history-server
+    ports:
+      web: 18080
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+hadoopConfig:
+  coreSite:
+    fsDefaultFS: hdfs://hadoop-namenode:9000
+    hadoopTmpDir: /tmp/hadoop
+  hdfsSite:
+    replication: 2
+    nameDir: /hadoop/dfs/name
+    dataDir: /hadoop/dfs/data
+  yarnSite:
+    resourcemanagerHostname: hadoop-resourcemanager
+  mapredSite:
+    framework: yarn

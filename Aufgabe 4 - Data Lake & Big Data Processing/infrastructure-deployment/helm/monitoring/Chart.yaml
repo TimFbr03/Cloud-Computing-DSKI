@@ -1,0 +1,4 @@
+apiVersion: v2
+name: monitoring
+version: 0.1.0
+description: Helm chart for monitoring stack (Prometheus + Grafana)

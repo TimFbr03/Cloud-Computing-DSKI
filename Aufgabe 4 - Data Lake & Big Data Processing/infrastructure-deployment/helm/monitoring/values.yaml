@@ -1,0 +1,85 @@
+# ==========================
+# Grafana
+# ==========================
+grafana:
+  adminUser: "admin"
+  adminPassword: "admin123"
+  service:
+    type: NodePort
+    nodePort: 30090
+  ingress:
+    enabled: false
+  defaultDashboardsEnabled: true
+
+  # Pre-provision Prometheus as datasource
+  additionalDataSources:
+    - name: Prometheus
+      type: prometheus
+      url: http://monitoring-kube-prometheus-sta-prometheus.monitoring.svc.cluster.local:9090
+      access: proxy
+      isDefault: true
+
+  # Example dashboard
+  dashboards:
+    default:
+      cluster-overview:
+        json: |
+          {
+            "id": null,
+            "title": "Cluster Overview",
+            "panels": [
+              {
+                "type": "graph",
+                "title": "CPU Usage",
+                "targets": [
+                  {
+                    "expr": "sum(rate(node_cpu_seconds_total{mode!='idle'}[5m])) by (instance)",
+                    "legendFormat": "{{instance}}"
+                  }
+                ]
+              },
+              {
+                "type": "graph",
+                "title": "Memory Usage",
+                "targets": [
+                  {
+                    "expr": "100 - ((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)",
+                    "legendFormat": "{{instance}}"
+                  }
+                ]
+              },
+              {
+                "type": "graph",
+                "title": "Network Traffic",
+                "targets": [
+                  {
+                    "expr": "rate(node_network_receive_bytes_total[5m])",
+                    "legendFormat": "{{device}} receive"
+                  },
+                  {
+                    "expr": "rate(node_network_transmit_bytes_total[5m])",
+                    "legendFormat": "{{device}} transmit"
+                  }
+                ]
+              }
+            ],
+            "schemaVersion": 30,
+            "version": 1
+          }
+
+# ==========================
+# Prometheus
+# ==========================
+prometheus:
+  prometheusSpec:
+    scrapeInterval: "15s"
+
+# ==========================
+# Node exporter + kube-state-metrics
+# (these are enabled by default in the stack, but we make sure here)
+# ==========================
+kube-state-metrics:
+  enabled: true
+
+prometheus-node-exporter:
+  enabled: true

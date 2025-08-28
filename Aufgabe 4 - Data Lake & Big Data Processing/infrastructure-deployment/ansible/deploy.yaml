@@ -1,0 +1,6 @@
+---
+- name: Provision k3s cluster and deploy Helm chart
+  hosts: all
+  become: yes
+  roles:
+    - deploy

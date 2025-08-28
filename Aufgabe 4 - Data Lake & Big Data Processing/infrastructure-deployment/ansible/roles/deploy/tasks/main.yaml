@@ -1,0 +1,324 @@
+# ==========================
+# Install prerequisites (von Aufgabe 3)
+# ==========================
+- name: Install prerequisites
+  apt:
+    name:
+      - curl
+      - gnupg
+      - lsb-release
+      - python3-pip        # pip installieren
+    update_cache: yes
+    state: present
+
+- name: Install Kubernetes Python module
+  pip:
+    name: kubernetes
+    executable: pip3
+
+# ==========================
+# k3s server installation (von Aufgabe 3)
+# ==========================
+- name: Install k3s server
+  shell: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+  args:
+    creates: /usr/local/bin/k3s
+  when: "'k3s_server' in group_names"
+
+- name: Wait for k3s server to be ready
+  shell: k3s kubectl get node
+  register: k3s_status
+  retries: 10
+  delay: 30
+  until: k3s_status.rc == 0
+  when: "'k3s_server' in group_names"
+
+- name: Save node token for agents
+  command: cat /var/lib/rancher/k3s/server/node-token
+  register: node_token
+  when: "'k3s_server' in group_names"
+
+- name: Copy token to localhost
+  copy:
+    content: "{{ node_token.stdout }}"
+    dest: "./node-token"
+    mode: '0600'
+  delegate_to: localhost
+  become: no
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Helm installation (von Aufgabe 3)
+# ==========================
+- name: Install Helm (server only)
+  shell: curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Copy Helm charts to server (erweitert)
+# ==========================
+- name: Copy Helm charts to server
+  copy:
+    src: "{{ playbook_dir }}/../helm/"
+    dest: "/tmp/helm"
+    mode: '0644'
+    remote_src: no
+    directory_mode: '0755'
+  when: "'k3s_server' in group_names"
+
+# NEU: Copy Data Ingestion Scripts
+- name: Copy data ingestion scripts
+  copy:
+    src: "{{ playbook_dir }}/../data-ingestion/"
+    dest: "/tmp/data-ingestion"
+    mode: '0755'
+    remote_src: no
+    directory_mode: '0755'
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Deploy App Chart (von Aufgabe 3)
+# ==========================
+- name: Create namespace for app
+  shell: /usr/local/bin/k3s kubectl create namespace microservices || true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Deploy App Helm chart
+  shell: |
+    helm upgrade --install "{{ helm_release_name }}" "/tmp/helm/app" \
+      --namespace microservices \
+      --create-namespace \
+      -f "/tmp/helm/app/values.yaml"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: helm_app_result
+  retries: 2
+  delay: 10
+  until: helm_app_result.rc == 0
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Install Nginx Ingress Controller (von Aufgabe 3)
+# ==========================
+- name: Install Nginx Ingress Controller
+  shell: |
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Deploy Monitoring Stack (von Aufgabe 3)
+# ==========================
+- name: Add Prometheus Helm repo
+  shell: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts && helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Create monitoring namespace
+  shell: /usr/local/bin/k3s kubectl create namespace monitoring || true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Deploy kube-prometheus-stack
+  shell: |
+    helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+      --namespace monitoring \
+      --create-namespace \
+      --set grafana.service.type=NodePort \
+      --set grafana.service.nodePort=30090 \
+      --set grafana.adminPassword=admin123
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: helm_monitoring_result
+  retries: 2
+  delay: 10
+  until: helm_monitoring_result.rc == 0
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Wait for Monitoring Stack (von Aufgabe 3)
+# ==========================
+- name: Wait for Grafana pod to be ready
+  shell: |
+    kubectl -n monitoring wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana,app.kubernetes.io/instance=monitoring --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Wait for Prometheus pods to be ready
+  shell: |
+    kubectl -n monitoring wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# NEU: Hadoop Data Lake Deployment
+# ==========================
+- name: Ensure Hadoop data directories exist on all nodes
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: '0755'
+  loop:
+    - /data/hadoop/namenode
+    - /data/hadoop/datanode-1
+    - /data/hadoop/datanode-2
+  when: "'k3s_server' in group_names or 'k3s_agent' in group_names"
+
+
+- name: Add Bitnami Helm repository for Hadoop
+  shell: |
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# Ensure Hadoop namespace exists and is Helm-managed
+- name: Ensure Hadoop namespace exists
+  shell: |
+    kubectl create namespace {{ hadoop.namespace }} || true
+    kubectl label namespace {{ hadoop.namespace }} app.kubernetes.io/managed-by=Helm --overwrite
+    kubectl annotate namespace {{ hadoop.namespace }} meta.helm.sh/release-name={{ hadoop.release_name }} --overwrite
+    kubectl annotate namespace {{ hadoop.namespace }} meta.helm.sh/release-namespace={{ hadoop.namespace }} --overwrite
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# Deploy Hadoop Data Lake via Helm
+- name: Deploy Hadoop Data Lake via Helm
+  shell: |
+    helm upgrade --install {{ hadoop.release_name }} "{{ hadoop.chart_path }}" \
+      --namespace {{ hadoop.namespace }} \
+      --set nodeSelector.role=hadoop-worker \
+      --timeout {{ helm_install_timeout }} \
+      --wait
+  delegate_to: "{{ groups['k3s_server'][0] }}"
+  run_once: true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Wait for Hadoop NameNode to be ready
+  shell: |
+    kubectl wait --for=condition=ready pod -l app=hadoop-namenode -n {{ hadoop.namespace }} --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Wait for Hadoop DataNodes to be ready
+  shell: |
+    kubectl wait --for=condition=ready pod -l app=hadoop-datanode -n {{ hadoop.namespace }} --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# NEU: HDFS Initialization
+# ==========================
+- name: Check if HDFS is already formatted
+  shell: |
+    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- test -d /hadoop/dfs/name/current
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: hdfs_formatted_check
+  failed_when: false
+  when: "'k3s_server' in group_names"
+
+- name: Format HDFS NameNode (first time only)
+  shell: |
+    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs namenode -format -force
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: 
+    - "'k3s_server' in group_names"
+    - hdfs_formatted_check.rc != 0
+
+- name: Create HDFS directory structure
+  shell: |
+    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfs -mkdir -p {{ item }}
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  loop: "{{ data_ingestion.hdfs_directories }}"
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# NEU: Data Ingestion
+# ==========================
+- name: Run data ingestion script
+  shell: |
+    cd /tmp/data-ingestion
+    chmod +x data-ingestion.sh
+    ./data-ingestion.sh
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# NEU: Deploy Spark Jobs
+# ==========================
+- name: Deploy Spark processing job
+  shell: |
+    kubectl apply -f /tmp/data-ingestion/spark-job.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# k3s agent installation (von Aufgabe 3)
+# ==========================
+- name: Install k3s agent
+  shell: |
+    curl -sfL https://get.k3s.io | K3S_URL="https://{{ hostvars[groups['k3s_server'][0]].inventory_hostname }}:6443" \
+    K3S_TOKEN="{{ lookup('file', './node-token') }}" sh -
+  args:
+    creates: /usr/local/bin/k3s
+  when: "'k3s_agent' in group_names"
+
+- name: Label Hadoop worker nodes
+  shell: kubectl label node {{ item }} role=hadoop-worker --overwrite
+  loop: "{{ groups['k3s_agent'] }}"
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# NEU: Deployment Summary
+# ==========================
+- name: Display deployment summary
+  debug:
+    msg: |
+      ============================================
+      Hadoop Data Lake Deployment Complete!
+      ============================================
+      
+      Microservices (from Task 3):
+      - Frontend: Available via Ingress
+      - Backend: Available via Ingress
+      - Database: Internal service
+      
+      Monitoring:
+      - Grafana: http://{{ ansible_default_ipv4.address }}:30090
+      - Prometheus: Available via port-forward
+      
+      Hadoop Data Lake:
+      - NameNode UI: http://{{ ansible_default_ipv4.address }}:{{ hadoop.services.namenode_ui_port }}
+      - ResourceManager: http://{{ ansible_default_ipv4.address }}:{{ hadoop.services.resource_manager_ui_port }}
+      - HDFS Web UI: Available via NameNode
+      
+      Data Processing:
+      - Spark Jobs: Check with kubectl get jobs -n {{ hadoop.namespace }}
+      - Data Location: HDFS at /datalake/
+      
+      Next Steps:
+      1. Verify HDFS status: kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfsadmin -report
+      2. Check data ingestion: kubectl logs -n {{ hadoop.namespace }} job/spark-task-processing
+      3. Access UIs for monitoring and verification
+  when: "'k3s_server' in group_names"
