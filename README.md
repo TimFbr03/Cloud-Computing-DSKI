@@ -7,7 +7,7 @@
 3. [Aufgabe 3 - Microservice Infrastructure](#aufgabe-3---microservice-infrastructure)
 4. [Aufgabe 4 - Data Lake / Big Data-Processing](#aufgabe-4---data-lake--big-data-processing)
 5. [Aufgabe 5 - Big Data-Stream Processing](#aufgabe-5---big-data-stream-processing)
-5.1 [Aufgabe 5 – Big Data-Stream Processing - Spark und SparkMLlib](#aufgabe-5---big-data-stream-processing---spark)
+5.1 [Aufgabe 5 – Big Data-Stream Processing - Spark und SparkMLlib](#aufgabe-5--big-data-stream-processing---spark-und-sparkmllib)
 ## Aufgabe 1 - Immutable Infrastructure
 
 Ziel der ersten Aufgabe ist es, eine Immutable Infrastructure bereitzustellen.
