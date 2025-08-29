@@ -1383,7 +1383,7 @@ Die realisierte Lösung besteht aus folgenden Komponenten:
 ** Producer-Clients **
 - `kafka-python` oder `confluent-kafka` (beide vorbereitet), um Flexibilität bei Latenz/Delivery zu haben.
 
-** Infrastruktur-Deployment (Docker Compose) **
+**Infrastruktur-Deployment (Docker Compose)**
 ```yaml
 version: '3.8'
 services:
@@ -1432,7 +1432,7 @@ Standardmäßig 6 Partitionen, RF=3.
 ```bash
 ./scripts/describe_group.sh spark-streaming-demo
 ```
-###Daten-Producer
+### Daten-Producer
 
 **Verzeichnis:** `aufgabe5/producer/`
 
@@ -1467,7 +1467,7 @@ python -m pip install -r producer/requirements.confluent.txt
 python producer/producer_confluent.py --rps 20
 ```
 
-###ML-Modell (Spark MLlib) – Training
+### ML-Modell (Spark MLlib) – Training
 **Datei:** `aufgabe5/spark/train_kmeans.py`
 
 **Schritte**
@@ -1496,7 +1496,7 @@ Train-Run
 # Falls kein System-Spark: python -m pip install -r spark/requirements.txt
 ./scripts/train_model.sh
 ```
-###Streaming-Applikation (Spark Structured Streaming)
+### Streaming-Applikation (Spark Structured Streaming)
 **Datei:** `aufgabe5/spark/stream_app.py` 
 - **Kafka-Quelle** (`spark-sql-kafka-0-10`), Topic `events`
 - **Schema:** `event_id`, `ts`, `user_id`, `event_type`, `value`
@@ -1567,7 +1567,7 @@ spark.streams.awaitAnyTermination()
 # --conf spark.sql.shuffle.partitions=6
 # --conf spark.default.parallelism=6
 ```
-###Skalierungsmechanismen
+### Skalierungsmechanismen
 **Kafka (horizontale Skalierung)**
 - **Partitionen:** 6 (`Topic: events`) → parallele Consumer-Tasks  
 - **Replikation:** `RF=3` + `min.insync.replicas=2` → Ausfallsicherheit  
@@ -1582,7 +1582,7 @@ spark.streams.awaitAnyTermination()
 - **Genau-einmal-Semantik:** Kafka + Structured Streaming + Checkpointing → exakt-einmalige Verarbeitung pro Micro-Batch (idempotenter Sink vorausgesetzt; Parquet-Append durch Checkpoints abgesichert)  
 - **Lag-Kontrolle:** via `describe_group.sh`
 
-###Runbook (End-to-End)
+### Runbook (End-to-End)
 **1.Cluster starten**
 ```bash
 docker compose up -d
@@ -1630,7 +1630,7 @@ aufgabe5/
         ├── agg-parquet/     # Aggregations-Output
         └── ml-preds/        # Online-Predictions (KMeans)
 ```
-###Zusammenfassung und Bewertung
+### Zusammenfassung und Bewertung
 - **Kafka-Cluster** (3 Broker + ZooKeeper) mit RF=3, P=6, Auto-Create Topics aus → kontrollierte Skalierung
 - **Structured Streaming** (Spark 3.5.1): JSON-Parsing, fensterbasierte Aggregation → Parquet (append) + Checkpointing
 - **MLlib-Integration:** KMeans-Pipeline (Indexing/Vectorizing) → Modellpersistenz, Online-Scoring via `foreachBatch`
