@@ -85,7 +85,7 @@ spec:
         storageClassName: hadoop-storage
         resources:
           requests:
-            storage: 50Gi
+            storage: 5Gi
 
 ---
 apiVersion: v1

@@ -19,10 +19,15 @@ spec:
           image: apache/hadoop:3
           command: ["/bin/sh", "-c"]
           args:
-            - test -f /hadoop/dfs/name/current/VERSION || /opt/hadoop/bin/hdfs namenode -format -force
+            - mkdir -p /hadoop/dfs/name \
+              && echo "Checking if NameNode is formatted..." \
+              && test -f /hadoop/dfs/name/current/VERSION \
+              || (echo "Formatting NameNode..." && /opt/hadoop/bin/hdfs namenode -format -force)
           volumeMounts:
             - name: namenode-data
               mountPath: /hadoop/dfs/name
+            - name: hadoop-config
+              mountPath: /opt/hadoop/etc/hadoop
       containers:
         - name: namenode
           image: apache/hadoop:3
@@ -39,17 +44,20 @@ spec:
               mountPath: /opt/hadoop/etc/hadoop
             - name: namenode-data
               mountPath: /hadoop/dfs/name
-          resources:
-            requests:
-              memory: "2Gi"
-              cpu: "1000m"
-            limits:
-              memory: "4Gi"
-              cpu: "2000m"
       volumes:
         - name: hadoop-config
           configMap:
             name: hadoop-config
+
+  volumeClaimTemplates:
+    - metadata:
+        name: namenode-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: hadoop-storage
+        resources:
+          requests:
+            storage: 10Gi
 ---
 apiVersion: v1
 kind: Service
@@ -86,16 +94,3 @@ spec:
       targetPort: 9870
       nodePort: 30091
       protocol: TCP
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: namenode-pvc
-  namespace: hadoop-cluster
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: hadoop-storage
-  resources:
-    requests:
-      storage: 10Gi

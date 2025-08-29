@@ -115,7 +115,7 @@ sparkHistoryServer:
 
 hadoopConfig:
   coreSite:
-    fsDefaultFS: hdfs://hadoop-namenode:9000
+    fsDefaultFS: hdfs://hadoop-namenode.hadoop-cluster.svc.cluster.local:9000
     hadoopTmpDir: /tmp/hadoop
   hdfsSite:
     replication: 2

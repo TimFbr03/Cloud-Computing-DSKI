@@ -295,18 +295,22 @@
   when: "'k3s_server' in group_names"
 
 - name: Wait for NameNode pod to exist
-  shell: kubectl get pod -l app=hadoop-namenode -n hadoop-cluster
+  shell: kubectl get pod -l app=hadoop-namenode -n {{ hadoop.namespace }}
   register: namenode_pod
   retries: 10
   delay: 5
   until: namenode_pod.rc == 0
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  delegate_to: "{{ groups['k3s_server'][0] }}"
+  run_once: true
 
 - name: Wait for Hadoop NameNode StatefulSet to be ready
   shell: kubectl rollout status statefulset/hadoop-namenode -n {{ hadoop.namespace }} --timeout=600s
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
-  
+
 # Deploy DataNodes
 - name: Deploy Hadoop DataNodes
   shell: |
@@ -334,26 +338,34 @@
   failed_when: false
   when: "'k3s_server' in group_names"
 
-- name: Format HDFS NameNode (first time only)
+# Warten bis NameNode-Pod bereit ist
+- name: Wait for Hadoop NameNode pod to be ready
   shell: |
-    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs namenode -format -force -Y
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  when: 
-    - "'k3s_server' in group_names"
-    - hdfs_formatted_check.rc != 0
-
-- name: Wait a bit for HDFS to be fully ready
-  pause:
-    seconds: 30
+    kubectl wait --for=condition=Ready pod/hadoop-namenode-0 -n hadoop-cluster --timeout=300s
+  retries: 5
+  delay: 15
+  register: namenode_ready
+  until: namenode_ready.rc == 0
   when: "'k3s_server' in group_names"
 
+# HDFS-Verzeichnisse anlegen
 - name: Create HDFS directory structure
   shell: |
-    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfs -mkdir -p {{ item }}
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  loop: "{{ data_ingestion.hdfs_directories }}"
+    kubectl exec -n hadoop-cluster hadoop-namenode-0 -- /opt/hadoop/bin/hdfs dfs -mkdir -p {{ item }}
+  loop:
+    - /datalake
+    - /datalake/datasets
+    - /datalake/datasets/project_tasks
+    - /datalake/datasets/research_activities
+    - /datalake/schemas
+    - /datalake/raw
+    - /datalake/processed
+    - /datalake/archive
+    - /datalake/metadata
+  register: hdfs_dirs
+  retries: 5
+  delay: 10
+  until: hdfs_dirs.rc == 0
   ignore_errors: yes
   when: "'k3s_server' in group_names"
 
@@ -500,19 +512,19 @@
       - Spark History: View completed Spark job details and metrics
   when: "'k3s_server' in group_names"
 
-# Zusätzlicher Task um sicherzustellen, dass alle NodePort Services bereit sind
-- name: Wait for Hadoop Web UIs to be accessible
-  uri:
-    url: "http://{{ ansible_default_ipv4.address }}:{{ item }}"
-    method: GET
-    status_code: [200, 302]
-  register: ui_check
-  until: ui_check.status in [200, 302]
-  retries: 10
-  delay: 30
-  loop:
-    - 30091  # NameNode Web UI
-    - 30092  # ResourceManager Web UI
-    - 30093  # Spark History Server
-  when: "'k3s_server' in group_names"
-  ignore_errors: yes
+# # Zusätzlicher Task um sicherzustellen, dass alle NodePort Services bereit sind
+# - name: Wait for Hadoop Web UIs to be accessible
+#   uri:
+#     url: "http://{{ ansible_default_ipv4.address }}:{{ item }}"
+#     method: GET
+#     status_code: [200, 302]
+#   register: ui_check
+#   until: ui_check.status in [200, 302]
+#   retries: 10
+#   delay: 30
+#   loop:
+#     - 30091  # NameNode Web UI
+#     - 30092  # ResourceManager Web UI
+#     - 30093  # Spark History Server
+#   when: "'k3s_server' in group_names"
+#   ignore_errors: yes
