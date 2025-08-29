@@ -50,17 +50,19 @@ k3s_write_kubeconfig_mode: "644"
 k3s_token_file: "/tmp/node-token"
 k3s_server_port: "6443"
 
-# Timeouts und Retries
-helm_install_timeout: "600s"
-k3s_ready_retries: 3
-k3s_ready_delay: 30
+# Timeouts und Retries (ERHÖHT für stabileres Deployment)
+helm_install_timeout: "900s"
+k3s_ready_retries: 5
+k3s_ready_delay: 45
 helm_install_retries: 3
-helm_install_delay: 60
+helm_install_delay: 90
 
 # Nginx Ingress Controller Version
 nginx_ingress_version: "controller-v1.8.1"
 
-# Hadoop Cluster Konfiguration
+# Ergänzung zu defaults/main.yaml - Hadoop Services Konfiguration mit NodePorts
+
+# Hadoop Cluster Konfiguration (erweitert)
 hadoop:
   namespace: "hadoop-cluster"
   chart_path: "/tmp/helm/data_lake"
@@ -84,12 +86,19 @@ hadoop:
     datanode_size: "100Gi"
     storage_class: "local-path"
     
-  # Services
+  # Services - NodePort Konfiguration für externen Zugriff
   services:
-    namenode_ui_port: 30870
-    resource_manager_ui_port: 30888
+    namenode_ui_port: 30091      # Externer Port für NameNode Web UI
+    resource_manager_ui_port: 30092  # Externer Port für ResourceManager Web UI
+    spark_history_ui_port: 30093     # Externer Port für Spark History Server
+    
+    # Interne Service-Ports (für Cluster-Kommunikation)
+    namenode_rpc_port: 9000
+    namenode_http_port: 9870
+    resourcemanager_web_port: 8088
+    spark_history_port: 18080
 
-# Spark Konfiguration für Big Data Processing
+# Spark Konfiguration für Big Data Processing (erweitert)
 spark:
   namespace: "{{ hadoop.namespace }}"
   executor_instances: 2
@@ -97,17 +106,24 @@ spark:
   executor_memory: "2g"
   driver_memory: "1g"
   
-# Data Ingestion Konfiguration
+  # Spark History Server Konfiguration
+  history_server:
+    enabled: true
+    log_directory: "hdfs://hadoop-namenode:9000/spark-logs"
+    external_access: true
+    nodeport: 30093
+  
+# Data Ingestion Konfiguration (VEREINFACHT)
 data_ingestion:
   datasets:
     - name: "project_tasks"
-      source: "/tmp/data/avro_dataset1_project_tasks.json"
+      source: "/tmp/sample-data/avro_dataset1_project_tasks.json"
       hdfs_path: "/datalake/datasets/project_tasks/"
     - name: "research_activities"
-      source: "/tmp/data/avro_dataset2_research_activities.json"
+      source: "/tmp/sample-data/avro_dataset2_research_activities.json"
       hdfs_path: "/datalake/datasets/research_activities/"
     - name: "schema"
-      source: "/tmp/data/avro_schema_tasks.json"
+      source: "/tmp/sample-data/avro_schema_tasks.json"
       hdfs_path: "/datalake/schemas/"
   
   # HDFS Verzeichnisstruktur
@@ -126,12 +142,8 @@ data_ingestion:
 bigdata_images:
   hadoop: "apache/hadoop:3"
   spark: "bitnami/spark:3.4"
-  zeppelin: "apache/zeppelin:0.10.1"
 
-# Monitoring für Hadoop (Erweiterung der bestehenden Prometheus Config)
+# Monitoring für Hadoop (vereinfacht)
 hadoop_monitoring:
-  enabled: true
+  enabled: false  # Erstmal deaktiviert für einfacheres Deployment
   scrape_interval: "30s"
-  metrics_endpoints:
-    - "hadoop-namenode:9870"
-    - "hadoop-resourcemanager:8088"

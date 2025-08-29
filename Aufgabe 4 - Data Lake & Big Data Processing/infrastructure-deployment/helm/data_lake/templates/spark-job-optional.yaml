@@ -1,0 +1,102 @@
+# spark-job-optional.yaml
+# Dieses File kann später manuell deployed werden, wenn HDFS vollständig läuft
+# kubectl apply -f spark-job-optional.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-job-config
+  namespace: hadoop-cluster
+data:
+  process_tasks.py: |
+    from pyspark.sql import SparkSession
+    from pyspark.sql.functions import *
+    from pyspark.sql.types import *
+    import json
+
+    # Spark Session initialisieren
+    spark = SparkSession.builder \
+        .appName("TaskDataProcessing") \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+        .getOrCreate()
+
+    # HDFS Pfade
+    HDFS_BASE = "hdfs://hadoop-namenode:9000/datalake"
+    DATASETS_PATH = f"{HDFS_BASE}/datasets"
+    PROCESSED_PATH = f"{HDFS_BASE}/processed"
+
+    def simple_data_check():
+        """Einfache Datenprüfung"""
+        try:
+            # Prüfe ob Dateien existieren
+            df = spark.read.text(f"{DATASETS_PATH}/project_tasks/avro_dataset1_project_tasks.json")
+            print(f"Project tasks file found with {df.count()} lines")
+            
+            df2 = spark.read.text(f"{DATASETS_PATH}/research_activities/avro_dataset2_research_activities.json")
+            print(f"Research activities file found with {df2.count()} lines")
+            
+            print("Data verification completed successfully!")
+            
+        except Exception as e:
+            print(f"Error during verification: {str(e)}")
+
+    # Hauptausführung
+    if __name__ == "__main__":
+        print("Starting simple Spark verification job...")
+        
+        try:
+            simple_data_check()
+            
+        except Exception as e:
+            print(f"Error during processing: {str(e)}")
+            raise
+        
+        finally:
+            spark.stop()
+
+---
+# Spark Job Deployment (optional)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-verification
+  namespace: hadoop-cluster
+spec:
+  template:
+    spec:
+      containers:
+        - name: spark-job
+          image: bitnami/spark:3.4
+          command: ["/bin/bash"]
+          args:
+            - -c
+            - |
+              # Simple verification
+              /opt/bitnami/spark/bin/spark-submit \
+                --master local[1] \
+                --conf spark.hadoop.fs.defaultFS=hdfs://hadoop-namenode:9000 \
+                --packages org.apache.hadoop:hadoop-client:3.3.4 \
+                /app/process_tasks.py
+          volumeMounts:
+            - name: spark-job-config
+              mountPath: /app
+            - name: hadoop-config
+              mountPath: /opt/hadoop/etc/hadoop
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      volumes:
+        - name: spark-job-config
+          configMap:
+            name: spark-job-config
+            defaultMode: 0755
+        - name: hadoop-config
+          configMap:
+            name: hadoop-config
+      restartPolicy: Never
+  backoffLimit: 2

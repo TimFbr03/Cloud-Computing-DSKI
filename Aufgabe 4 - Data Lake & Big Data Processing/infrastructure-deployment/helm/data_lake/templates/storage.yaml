@@ -3,7 +3,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: hadoop-storage
-provisioner: kubernetes.io/no-provisioner
+provisioner: rancher.io/local-path
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
 
@@ -24,7 +24,7 @@ spec:
     path: /data/hadoop/namenode
 
 ---
-# DataNode PV Template
+# DataNode PV Templates
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -53,3 +53,18 @@ spec:
   storageClassName: hadoop-storage
   hostPath:
     path: /data/hadoop/datanode-2
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: datanode-pv-3
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: hadoop-storage
+  hostPath:
+    path: /data/hadoop/datanode-3

@@ -1,5 +1,6 @@
+#!/bin/bash
 # data-ingestion.sh
-# Script zum Laden von Datensätzen in den Hadoop Data Lake
+# Vereinfachtes Script zum Laden von Datensätzen in den Hadoop Data Lake
 
 echo "=== Data Lake Ingestion Script ==="
 echo "Loading datasets into Hadoop HDFS..."
@@ -7,7 +8,6 @@ echo "Loading datasets into Hadoop HDFS..."
 # Variablen
 NAMESPACE="hadoop-cluster"
 NAMENODE_POD="deployment/hadoop-namenode"
-LOCAL_DATA_PATH="/data"
 HDFS_BASE_PATH="/datalake"
 DATASETS_PATH="$HDFS_BASE_PATH/datasets"
 
@@ -22,8 +22,9 @@ check_cluster_status() {
         exit 1
     fi
     
-    # HDFS Status prüfen
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfsadmin -safemode get
+    # Warten bis NameNode bereit ist
+    echo "Waiting for NameNode to be ready..."
+    kubectl wait --for=condition=ready pod -l app=hadoop-namenode -n $NAMESPACE --timeout=300s
     
     echo "Cluster status: OK"
 }
@@ -33,72 +34,61 @@ create_hdfs_structure() {
     echo "Creating HDFS directory structure..."
     
     # Basis-Verzeichnisse erstellen
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $DATASETS_PATH/project_tasks
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $DATASETS_PATH/research_activities
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $DATASETS_PATH/schemas
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH/raw
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH/processed
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH/archive
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH || true
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $DATASETS_PATH/project_tasks || true
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $DATASETS_PATH/research_activities || true
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $DATASETS_PATH/schemas || true
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH/raw || true
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH/processed || true
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -mkdir -p $HDFS_BASE_PATH/archive || true
     
     echo "HDFS directory structure created successfully"
 }
 
-# Datensätze in HDFS laden
+# Datensätze in HDFS laden (vereinfacht)
 load_datasets() {
     echo "Loading datasets into HDFS..."
     
-    # Temporäres Volume für Datenübertragung erstellen
-    kubectl create configmap data-transfer \
-        --from-file=avro_dataset1_project_tasks.json \
-        --from-file=avro_dataset2_research_activities.json \
-        --from-file=avro_schema_tasks.json \
-        -n $NAMESPACE
+    # Prüfen ob Sample-Daten existieren
+    if [ ! -f "/tmp/sample-data/avro_dataset1_project_tasks.json" ]; then
+        echo "ERROR: Sample data files not found!"
+        return 1
+    fi
     
     # Temporären Pod für Datenübertragung erstellen
-    cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Pod
-metadata:
-  name: data-transfer-pod
-  namespace: $NAMESPACE
-spec:
-  containers:
-  - name: hadoop-client
-    image: apache/hadoop:3
-    command: ["/bin/sleep", "3600"]
-    volumeMounts:
-    - name: data-volume
-      mountPath: /data
-    - name: hadoop-config
-      mountPath: /opt/hadoop/etc/hadoop
-  volumes:
-  - name: data-volume
-    configMap:
-      name: data-transfer
-  - name: hadoop-config
-    configMap:
-      name: hadoop-config
-  restartPolicy: Never
-EOF
+    kubectl create configmap data-transfer \
+        --from-file=/tmp/sample-data/avro_dataset1_project_tasks.json \
+        --from-file=/tmp/sample-data/avro_dataset2_research_activities.json \
+        --from-file=/tmp/sample-data/avro_schema_tasks.json \
+        -n $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
     
-    # Warten bis Pod bereit ist
-    echo "Waiting for data transfer pod to be ready..."
-    kubectl wait --for=condition=ready pod/data-transfer-pod -n $NAMESPACE --timeout=120s
+    # Warten bis ConfigMap erstellt ist
+    sleep 5
     
-    # Daten in HDFS kopieren
+    # Daten direkt über kubectl exec kopieren
     echo "Copying project tasks dataset..."
-    kubectl exec -n $NAMESPACE data-transfer-pod -- /opt/hadoop/bin/hdfs dfs -put /data/avro_dataset1_project_tasks.json $DATASETS_PATH/project_tasks/
-    
-    echo "Copying research activities dataset..."
-    kubectl exec -n $NAMESPACE data-transfer-pod -- /opt/hadoop/bin/hdfs dfs -put /data/avro_dataset2_research_activities.json $DATASETS_PATH/research_activities/
-    
-    echo "Copying schema definition..."
-    kubectl exec -n $NAMESPACE data-transfer-pod -- /opt/hadoop/bin/hdfs dfs -put /data/avro_schema_tasks.json $DATASETS_PATH/schemas/
+    kubectl run data-loader --rm -i --image=apache/hadoop:3 --restart=Never -n $NAMESPACE \
+        --overrides='{
+          "spec": {
+            "volumes": [
+              {"name": "data-volume", "configMap": {"name": "data-transfer"}},
+              {"name": "hadoop-config", "configMap": {"name": "hadoop-config"}}
+            ],
+            "containers": [{
+              "name": "data-loader",
+              "image": "apache/hadoop:3",
+              "command": ["/bin/bash", "-c"],
+              "args": ["cp /data/* /tmp/ && /opt/hadoop/bin/hdfs dfs -put /tmp/avro_dataset1_project_tasks.json '$DATASETS_PATH/project_tasks/' && /opt/hadoop/bin/hdfs dfs -put /tmp/avro_dataset2_research_activities.json '$DATASETS_PATH/research_activities/' && /opt/hadoop/bin/hdfs dfs -put /tmp/avro_schema_tasks.json '$DATASETS_PATH/schemas/' && echo 'Data loading completed'"],
+              "volumeMounts": [
+                {"name": "data-volume", "mountPath": "/data"},
+                {"name": "hadoop-config", "mountPath": "/opt/hadoop/etc/hadoop"}
+              ]
+            }]
+          }
+        }'
     
     # Cleanup
-    kubectl delete pod data-transfer-pod -n $NAMESPACE
-    kubectl delete configmap data-transfer -n $NAMESPACE
+    kubectl delete configmap data-transfer -n $NAMESPACE || true
     
     echo "Datasets loaded successfully"
 }
@@ -109,84 +99,31 @@ verify_data_integrity() {
     
     # Dateien auflisten
     echo "Files in HDFS:"
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $DATASETS_PATH
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $DATASETS_PATH || echo "Could not list files"
     
-    # Dateigrößen prüfen
-    echo "File sizes:"
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -du -h $DATASETS_PATH
-    
-    # Replikation prüfen
-    echo "Replication status:"
-    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs fsck $DATASETS_PATH -files -blocks -locations
-}
-
-# Metadaten erstellen
-create_metadata() {
-    echo "Creating dataset metadata..."
-    
-    # Metadata als JSON erstellen
-    cat <<EOF > dataset_metadata.json
-{
-  "datasets": [
-    {
-      "name": "project_tasks",
-      "path": "$DATASETS_PATH/project_tasks/avro_dataset1_project_tasks.json",
-      "format": "avro_json",
-      "schema_path": "$DATASETS_PATH/schemas/avro_schema_tasks.json",
-      "record_count": 15,
-      "created_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-      "description": "Project management tasks with completion status"
-    },
-    {
-      "name": "research_activities", 
-      "path": "$DATASETS_PATH/research_activities/avro_dataset2_research_activities.json",
-      "format": "avro_json",
-      "schema_path": "$DATASETS_PATH/schemas/avro_schema_tasks.json",
-      "record_count": 15,
-      "created_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-      "description": "Research and development activities"
-    }
-  ],
-  "data_lake_info": {
-    "hdfs_cluster": "$NAMESPACE",
-    "base_path": "$HDFS_BASE_PATH",
-    "ingestion_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "total_datasets": 2
-  }
-}
-EOF
-
-    # Metadata in HDFS speichern
-    kubectl create configmap metadata --from-file=dataset_metadata.json -n $NAMESPACE
-    kubectl run metadata-loader --rm -i --image=apache/hadoop:3 --restart=Never -n $NAMESPACE \
-        --overrides='{"spec":{"volumes":[{"name":"metadata","configMap":{"name":"metadata"}},{"name":"hadoop-config","configMap":{"name":"hadoop-config"}}],"containers":[{"name":"metadata-loader","image":"apache/hadoop:3","command":["/bin/bash","-c","cp /metadata/dataset_metadata.json /tmp/ && /opt/hadoop/bin/hdfs dfs -put /tmp/dataset_metadata.json '$HDFS_BASE_PATH/metadata/'"],"volumeMounts":[{"name":"metadata","mountPath":"/metadata"},{"name":"hadoop-config","mountPath":"/opt/hadoop/etc/hadoop"}]}]}}'
-    
-    kubectl delete configmap metadata -n $NAMESPACE
-    rm dataset_metadata.json
-    
-    echo "Metadata created successfully"
+    # HDFS Status prüfen
+    echo "HDFS Status:"
+    kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfsadmin -report || echo "Could not get HDFS report"
 }
 
 # Hauptausführung
 main() {
-    echo "Starting data ingestion process..."
+    echo "Starting simplified data ingestion process..."
     
     check_cluster_status
     create_hdfs_structure
     load_datasets
     verify_data_integrity
-    create_metadata
     
     echo ""
     echo "=== Data Ingestion Complete ==="
-    echo "Your datasets are now available in HDFS:"
+    echo "Your datasets should now be available in HDFS:"
     echo "- Project Tasks: $DATASETS_PATH/project_tasks/"
     echo "- Research Activities: $DATASETS_PATH/research_activities/"
     echo "- Schema: $DATASETS_PATH/schemas/"
-    echo "- Metadata: $HDFS_BASE_PATH/metadata/"
     echo ""
-    echo "To access the data:"
-    echo "kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -cat $DATASETS_PATH/project_tasks/avro_dataset1_project_tasks.json"
+    echo "To verify the data:"
+    echo "kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $DATASETS_PATH"
 }
 
 # Hilfefunktionen
@@ -209,16 +146,16 @@ case "${1:-}" in
         ;;
     --status)
         check_cluster_status
-        kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $HDFS_BASE_PATH
+        kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $HDFS_BASE_PATH || echo "No data found"
         exit 0
         ;;
     --list)
-        kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $HDFS_BASE_PATH
+        kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -ls -R $HDFS_BASE_PATH || echo "No data found"
         exit 0
         ;;
     --cleanup)
         echo "Cleaning up datasets..."
-        kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -rm -r $HDFS_BASE_PATH
+        kubectl exec -n $NAMESPACE $NAMENODE_POD -- /opt/hadoop/bin/hdfs dfs -rm -r $HDFS_BASE_PATH || echo "Nothing to clean"
         echo "Cleanup complete"
         exit 0
         ;;

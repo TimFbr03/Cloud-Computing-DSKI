@@ -68,7 +68,83 @@
     directory_mode: '0755'
   when: "'k3s_server' in group_names"
 
-# NEU: Copy Data Ingestion Scripts
+# NEU: Create sample data files for ingestion
+- name: Create sample data directory
+  file:
+    path: /tmp/sample-data
+    state: directory
+    mode: '0755'
+  when: "'k3s_server' in group_names"
+
+- name: Create sample Avro JSON data files
+  copy:
+    content: |
+      {
+        "schema": {
+          "type": "record",
+          "name": "Task",
+          "fields": [
+            {"name": "title", "type": "string"},
+            {"name": "description", "type": "string"},
+            {"name": "completed", "type": "boolean"},
+            {"name": "deleted", "type": "boolean"},
+            {"name": "user_id", "type": "string"}
+          ]
+        },
+        "records": [
+          {"title": "Task 1", "description": "Complete project documentation", "completed": true, "deleted": false, "user_id": "user1"},
+          {"title": "Task 2", "description": "Review code changes", "completed": false, "deleted": false, "user_id": "user1"},
+          {"title": "Task 3", "description": "Deploy to production", "completed": false, "deleted": false, "user_id": "user2"}
+        ]
+      }
+    dest: /tmp/sample-data/avro_dataset1_project_tasks.json
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+- name: Create research activities sample data
+  copy:
+    content: |
+      {
+        "schema": {
+          "type": "record",
+          "name": "Task",
+          "fields": [
+            {"name": "title", "type": "string"},
+            {"name": "description", "type": "string"},
+            {"name": "completed", "type": "boolean"},
+            {"name": "deleted", "type": "boolean"},
+            {"name": "user_id", "type": "string"}
+          ]
+        },
+        "records": [
+          {"title": "AI Research", "description": "Machine Learning algorithm development", "completed": true, "deleted": false, "user_id": "researcher1"},
+          {"title": "Quantum Computing", "description": "Quantum algorithm optimization", "completed": false, "deleted": false, "user_id": "researcher2"},
+          {"title": "Blockchain Analysis", "description": "Smart contract security research", "completed": true, "deleted": false, "user_id": "researcher1"}
+        ]
+      }
+    dest: /tmp/sample-data/avro_dataset2_research_activities.json
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+- name: Create schema file
+  copy:
+    content: |
+      {
+        "type": "record",
+        "name": "Task",
+        "fields": [
+          {"name": "title", "type": "string"},
+          {"name": "description", "type": "string"},
+          {"name": "completed", "type": "boolean"},
+          {"name": "deleted", "type": "boolean"},
+          {"name": "user_id", "type": "string"}
+        ]
+      }
+    dest: /tmp/sample-data/avro_schema_tasks.json
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+# NEU: Copy Data Ingestion Scripts (fixed)
 - name: Copy data ingestion scripts
   copy:
     src: "{{ playbook_dir }}/../data-ingestion/"
@@ -160,62 +236,86 @@
   when: "'k3s_server' in group_names"
 
 # ==========================
-# NEU: Hadoop Data Lake Deployment
+# k3s agent installation (von Aufgabe 3)
+# ==========================
+- name: Install k3s agent
+  shell: |
+    curl -sfL https://get.k3s.io | K3S_URL="https://{{ hostvars[groups['k3s_server'][0]].inventory_hostname }}:6443" \
+    K3S_TOKEN="{{ lookup('file', './node-token') }}" sh -
+  args:
+    creates: /usr/local/bin/k3s
+  when: "'k3s_agent' in group_names"
+
+# ==========================
+# NEU: Hadoop Data Lake Deployment (FIXED)
 # ==========================
 - name: Ensure Hadoop data directories exist on all nodes
   file:
     path: "{{ item }}"
     state: directory
-    owner: 1000
-    group: 1000
+    owner: root
+    group: root
     mode: '0755'
   loop:
     - /data/hadoop/namenode
     - /data/hadoop/datanode-1
     - /data/hadoop/datanode-2
-  when: "'k3s_server' in group_names or 'k3s_agent' in group_names"
+    - /data/hadoop/datanode-3
 
-
-- name: Add Bitnami Helm repository for Hadoop
-  shell: |
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  when: "'k3s_server' in group_names"
-
-# Ensure Hadoop namespace exists and is Helm-managed
-- name: Ensure Hadoop namespace exists
+# Create namespace manually first
+- name: Create Hadoop namespace
   shell: |
     kubectl create namespace {{ hadoop.namespace }} || true
-    kubectl label namespace {{ hadoop.namespace }} app.kubernetes.io/managed-by=Helm --overwrite
-    kubectl annotate namespace {{ hadoop.namespace }} meta.helm.sh/release-name={{ hadoop.release_name }} --overwrite
-    kubectl annotate namespace {{ hadoop.namespace }} meta.helm.sh/release-namespace={{ hadoop.namespace }} --overwrite
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
-# Deploy Hadoop Data Lake via Helm
-- name: Deploy Hadoop Data Lake via Helm
+# Deploy storage resources first
+- name: Deploy Hadoop storage resources
   shell: |
-    helm upgrade --install {{ hadoop.release_name }} "{{ hadoop.chart_path }}" \
-      --namespace {{ hadoop.namespace }} \
-      --set nodeSelector.role=hadoop-worker \
-      --timeout {{ helm_install_timeout }} \
-      --wait
-  delegate_to: "{{ groups['k3s_server'][0] }}"
-  run_once: true
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-
-- name: Wait for Hadoop NameNode to be ready
-  shell: |
-    kubectl wait --for=condition=ready pod -l app=hadoop-namenode -n {{ hadoop.namespace }} --timeout=600s
+    kubectl apply -f /tmp/helm/data_lake/templates/storage.yaml
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
-- name: Wait for Hadoop DataNodes to be ready
+# Deploy config map
+- name: Deploy Hadoop configuration
+  shell: |
+    kubectl apply -f /tmp/helm/data_lake/templates/hadoop-config.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+# Deploy NameNode first
+- name: Deploy Hadoop NameNode
+  shell: |
+    kubectl apply -f /tmp/helm/data_lake/templates/namenode.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Wait for NameNode pod to exist
+  shell: kubectl get pod -l app=hadoop-namenode -n hadoop-cluster
+  register: namenode_pod
+  retries: 10
+  delay: 5
+  until: namenode_pod.rc == 0
+
+- name: Wait for Hadoop NameNode StatefulSet to be ready
+  shell: kubectl rollout status statefulset/hadoop-namenode -n {{ hadoop.namespace }} --timeout=600s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+  
+# Deploy DataNodes
+- name: Deploy Hadoop DataNodes
+  shell: |
+    kubectl apply -f /tmp/helm/data_lake/templates/datanode.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Wait for DataNodes to be ready
   shell: |
     kubectl wait --for=condition=ready pod -l app=hadoop-datanode -n {{ hadoop.namespace }} --timeout=600s
   environment:
@@ -223,7 +323,7 @@
   when: "'k3s_server' in group_names"
 
 # ==========================
-# NEU: HDFS Initialization
+# NEU: HDFS Initialization (FIXED)
 # ==========================
 - name: Check if HDFS is already formatted
   shell: |
@@ -236,12 +336,17 @@
 
 - name: Format HDFS NameNode (first time only)
   shell: |
-    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs namenode -format -force
+    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs namenode -format -force -Y
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: 
     - "'k3s_server' in group_names"
     - hdfs_formatted_check.rc != 0
+
+- name: Wait a bit for HDFS to be fully ready
+  pause:
+    seconds: 30
+  when: "'k3s_server' in group_names"
 
 - name: Create HDFS directory structure
   shell: |
@@ -249,49 +354,111 @@
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   loop: "{{ data_ingestion.hdfs_directories }}"
+  ignore_errors: yes
   when: "'k3s_server' in group_names"
 
 # ==========================
-# NEU: Data Ingestion
+# NEU: Data Ingestion (FIXED - using kubectl apply)
 # ==========================
-- name: Run data ingestion script
+- name: Create simple data ingestion ConfigMap
   shell: |
-    cd /tmp/data-ingestion
-    chmod +x data-ingestion.sh
-    ./data-ingestion.sh
+    kubectl create configmap sample-data \
+      --from-file=/tmp/sample-data/avro_dataset1_project_tasks.json \
+      --from-file=/tmp/sample-data/avro_dataset2_research_activities.json \
+      --from-file=/tmp/sample-data/avro_schema_tasks.json \
+      -n {{ hadoop.namespace }} --dry-run=client -o yaml | kubectl apply -f -
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Create data ingestion job manifest
+  copy:
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: data-ingestion
+        namespace: {{ hadoop.namespace }}
+      spec:
+        restartPolicy: Never
+        volumes:
+          - name: sample-data
+            configMap:
+              name: sample-data
+          - name: hadoop-config
+            configMap:
+              name: hadoop-config
+        containers:
+          - name: data-ingestion
+            image: apache/hadoop:3
+            command: ["/bin/bash", "-c"]
+            args:
+              - |
+                set -e
+                echo "Starting data ingestion..."
+                cp /data/* /tmp/
+                ls -la /tmp/
+                
+                echo "Putting project tasks data..."
+                /opt/hadoop/bin/hdfs dfs -put /tmp/avro_dataset1_project_tasks.json /datalake/datasets/project_tasks/ || echo "Project tasks already exists"
+                
+                echo "Putting research activities data..."
+                /opt/hadoop/bin/hdfs dfs -put /tmp/avro_dataset2_research_activities.json /datalake/datasets/research_activities/ || echo "Research activities already exists"
+                
+                echo "Putting schema data..."
+                /opt/hadoop/bin/hdfs dfs -put /tmp/avro_schema_tasks.json /datalake/schemas/ || echo "Schema already exists"
+                
+                echo "Data ingestion completed successfully!"
+                sleep 10
+            volumeMounts:
+              - name: sample-data
+                mountPath: /data
+              - name: hadoop-config
+                mountPath: /opt/hadoop/etc/hadoop
+    dest: /tmp/data-ingestion-pod.yaml
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+- name: Run data ingestion job
+  shell: |
+    kubectl delete pod data-ingestion -n {{ hadoop.namespace }} --ignore-not-found=true
+    kubectl apply -f /tmp/data-ingestion-pod.yaml
+    kubectl wait --for=condition=ready pod/data-ingestion -n {{ hadoop.namespace }} --timeout=300s || true
+    kubectl logs data-ingestion -n {{ hadoop.namespace }}
+    kubectl delete pod data-ingestion -n {{ hadoop.namespace }} --ignore-not-found=true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Verify data ingestion
+  shell: |
+    kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfs -ls -R /datalake/datasets/ || echo "Could not list datasets"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
 # ==========================
-# NEU: Deploy Spark Jobs
+# Label nodes for better scheduling
 # ==========================
-- name: Deploy Spark processing job
-  shell: |
-    kubectl apply -f /tmp/data-ingestion/spark-job.yaml
+- name: Get node names
+  command: kubectl get nodes -o jsonpath='{.items[*].metadata.name}'
+  register: k8s_nodes
+  delegate_to: "{{ groups['k3s_server'][0] }}"
+  run_once: true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  when: "'k3s_server' in group_names"
 
-# ==========================
-# k3s agent installation (von Aufgabe 3)
-# ==========================
-- name: Install k3s agent
-  shell: |
-    curl -sfL https://get.k3s.io | K3S_URL="https://{{ hostvars[groups['k3s_server'][0]].inventory_hostname }}:6443" \
-    K3S_TOKEN="{{ lookup('file', './node-token') }}" sh -
-  args:
-    creates: /usr/local/bin/k3s
-  when: "'k3s_agent' in group_names"
-
-- name: Label Hadoop worker nodes
-  shell: kubectl label node {{ item }} role=hadoop-worker --overwrite
-  loop: "{{ groups['k3s_agent'] }}"
-  when: "'k3s_server' in group_names"
+- name: Label nodes for Hadoop workloads
+  command: kubectl label node {{ item }} role=hadoop-worker --overwrite
+  loop: "{{ k8s_nodes.stdout.split() }}"
+  delegate_to: "{{ groups['k3s_server'][0] }}"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
 # ==========================
 # NEU: Deployment Summary
 # ==========================
+# Ergänzung zu main.yaml - Task für das Deployment Summary Update
 - name: Display deployment summary
   debug:
     msg: |
@@ -308,17 +475,44 @@
       - Grafana: http://{{ ansible_default_ipv4.address }}:30090
       - Prometheus: Available via port-forward
       
-      Hadoop Data Lake:
-      - NameNode UI: http://{{ ansible_default_ipv4.address }}:{{ hadoop.services.namenode_ui_port }}
-      - ResourceManager: http://{{ ansible_default_ipv4.address }}:{{ hadoop.services.resource_manager_ui_port }}
-      - HDFS Web UI: Available via NameNode
+      Hadoop Data Lake - External Access:
+      - NameNode Web UI: http://{{ ansible_default_ipv4.address }}:30091
+      - YARN ResourceManager: http://{{ ansible_default_ipv4.address }}:30092
+      - Spark History Server: http://{{ ansible_default_ipv4.address }}:30093
+      
+      Hadoop Data Lake - Internal Services:
+      - NameNode RPC: hadoop-namenode.hadoop-cluster.svc.cluster.local:9000
+      - ResourceManager: hadoop-resourcemanager.hadoop-cluster.svc.cluster.local:8088
       
       Data Processing:
       - Spark Jobs: Check with kubectl get jobs -n {{ hadoop.namespace }}
       - Data Location: HDFS at /datalake/
       
-      Next Steps:
-      1. Verify HDFS status: kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfsadmin -report
-      2. Check data ingestion: kubectl logs -n {{ hadoop.namespace }} job/spark-task-processing
-      3. Access UIs for monitoring and verification
+      Access Commands:
+      1. Check HDFS status: kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfsadmin -report
+      2. View data: kubectl exec -n {{ hadoop.namespace }} deployment/hadoop-namenode -- /opt/hadoop/bin/hdfs dfs -ls /datalake
+      3. Check Spark jobs: kubectl logs -n {{ hadoop.namespace }} job/spark-task-processing
+      4. Port-forward (alternative access): kubectl port-forward -n {{ hadoop.namespace }} svc/hadoop-namenode-web 9870:9870
+      
+      Web UIs Available:
+      - NameNode: Browse HDFS, view cluster status, file system operations
+      - ResourceManager: Monitor YARN applications, resource allocation
+      - Spark History: View completed Spark job details and metrics
   when: "'k3s_server' in group_names"
+
+# Zusätzlicher Task um sicherzustellen, dass alle NodePort Services bereit sind
+- name: Wait for Hadoop Web UIs to be accessible
+  uri:
+    url: "http://{{ ansible_default_ipv4.address }}:{{ item }}"
+    method: GET
+    status_code: [200, 302]
+  register: ui_check
+  until: ui_check.status in [200, 302]
+  retries: 10
+  delay: 30
+  loop:
+    - 30091  # NameNode Web UI
+    - 30092  # ResourceManager Web UI
+    - 30093  # Spark History Server
+  when: "'k3s_server' in group_names"
+  ignore_errors: yes

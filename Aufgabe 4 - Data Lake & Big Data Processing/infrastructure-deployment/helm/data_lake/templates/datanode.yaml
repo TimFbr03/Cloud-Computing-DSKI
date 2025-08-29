@@ -6,7 +6,7 @@ metadata:
   namespace: hadoop-cluster
 spec:
   serviceName: hadoop-datanode
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: hadoop-datanode
@@ -15,15 +15,38 @@ spec:
       labels:
         app: hadoop-datanode
     spec:
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ['sh', '-c', 'chown -R 1000:1000 /hadoop/dfs/data']
+          volumeMounts:
+            - name: datanode-data
+              mountPath: /hadoop/dfs/data
       containers:
         - name: datanode
           image: apache/hadoop:3
-          command: ["/opt/hadoop/bin/hdfs"]
-          args: ["datanode"]
+          command: ["/bin/bash"]
+          args:
+            - -c
+            - |
+              # Wait for namenode to be ready
+              until nc -z hadoop-namenode 9000; do
+                echo "Waiting for namenode..."
+                sleep 5
+              done
+              
+              # Start datanode
+              /opt/hadoop/bin/hdfs datanode
+          env:
+            - name: HDFS_CONF_dfs_datanode_data_dir
+              value: "/hadoop/dfs/data"
           ports:
             - containerPort: 9864
+              name: http
             - containerPort: 9866
+              name: data
             - containerPort: 9867
+              name: ipc
           volumeMounts:
             - name: hadoop-config
               mountPath: /opt/hadoop/etc/hadoop
@@ -31,11 +54,25 @@ spec:
               mountPath: /hadoop/dfs/data
           resources:
             requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
               memory: "2Gi"
               cpu: "1000m"
-            limits:
-              memory: "4Gi"
-              cpu: "2000m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9864
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9864
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
       volumes:
         - name: hadoop-config
           configMap:

@@ -1,270 +1,6 @@
-# spark-job.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: spark-job-config
-  namespace: hadoop-cluster
-data:
-  process_tasks.py: |
-    from pyspark.sql import SparkSession
-    from pyspark.sql.functions import *
-    from pyspark.sql.types import *
-    import json
-
-    # Spark Session initialisieren
-    spark = SparkSession.builder \
-        .appName("TaskDataProcessing") \
-        .config("spark.sql.adaptive.enabled", "true") \
-        .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
-        .getOrCreate()
-
-    # HDFS Pfade
-    HDFS_BASE = "hdfs://hadoop-namenode:9000/datalake"
-    DATASETS_PATH = f"{HDFS_BASE}/datasets"
-    PROCESSED_PATH = f"{HDFS_BASE}/processed"
-
-    def load_avro_json_data(file_path):
-        """Lädt Avro-JSON Daten und extrahiert Records"""
-        
-        # JSON Datei einlesen
-        df = spark.read.text(file_path)
-        
-        # JSON parsen und Records extrahieren
-        parsed_df = df.select(
-            from_json(col("value"), 
-                     StructType([
-                         StructField("schema", StringType(), True),
-                         StructField("records", ArrayType(
-                             StructType([
-                                 StructField("title", StringType(), True),
-                                 StructField("description", StringType(), True),
-                                 StructField("completed", BooleanType(), True),
-                                 StructField("deleted", BooleanType(), True),
-                                 StructField("user_id", StringType(), True)
-                             ])
-                         ), True)
-                     ])).alias("data")
-        )
-        
-        # Records extrahieren
-        records_df = parsed_df.select(explode(col("data.records")).alias("record"))
-        
-        # Felder als Spalten extrahieren
-        final_df = records_df.select(
-            col("record.title").alias("title"),
-            col("record.description").alias("description"),
-            col("record.completed").alias("completed"),
-            col("record.deleted").alias("deleted"),
-            col("record.user_id").alias("user_id")
-        )
-        
-        return final_df
-
-    def process_project_tasks():
-        """Verarbeitung der Projekt-Tasks"""
-        
-        print("Loading project tasks data...")
-        project_df = load_avro_json_data(f"{DATASETS_PATH}/project_tasks/avro_dataset1_project_tasks.json")
-        
-        # Datenanalyse
-        print(f"Total project tasks: {project_df.count()}")
-        
-        # Completion Analysis
-        completion_stats = project_df.groupBy("completed").count()
-        completion_stats.show()
-        
-        # User Analysis
-        user_stats = project_df.groupBy("user_id") \
-            .agg(
-                count("*").alias("total_tasks"),
-                sum(when(col("completed") == True, 1).otherwise(0)).alias("completed_tasks"),
-                sum(when(col("deleted") == True, 1).otherwise(0)).alias("deleted_tasks")
-            ) \
-            .withColumn("completion_rate", col("completed_tasks") / col("total_tasks"))
-        
-        print("User Statistics:")
-        user_stats.show()
-        
-        # Text Analysis - Beschreibungslängen
-        text_analysis = project_df.withColumn("description_length", length(col("description"))) \
-            .withColumn("title_length", length(col("title")))
-        
-        text_stats = text_analysis.select(
-            avg("description_length").alias("avg_description_length"),
-            max("description_length").alias("max_description_length"),
-            min("description_length").alias("min_description_length"),
-            avg("title_length").alias("avg_title_length")
-        )
-        
-        print("Text Analysis:")
-        text_stats.show()
-        
-        # Ergebnisse speichern
-        user_stats.coalesce(1).write.mode("overwrite").parquet(f"{PROCESSED_PATH}/project_tasks_user_stats")
-        text_analysis.coalesce(1).write.mode("overwrite").parquet(f"{PROCESSED_PATH}/project_tasks_with_text_analysis")
-        
-        return project_df, user_stats, text_analysis
-
-    def process_research_activities():
-        """Verarbeitung der Research Activities"""
-        
-        print("Loading research activities data...")
-        research_df = load_avro_json_data(f"{DATASETS_PATH}/research_activities/avro_dataset2_research_activities.json")
-        
-        # Keyword-Extraktion aus Beschreibungen
-        # Häufige Tech-Keywords definieren
-        tech_keywords = ["AI", "Machine Learning", "Quantum", "Blockchain", "IoT", "Cloud", 
-                        "Neural", "Algorithm", "Deep Learning", "Computer Vision", "Robotics"]
-        
-        # Keyword-Analyse
-        keyword_df = research_df
-        for keyword in tech_keywords:
-            keyword_df = keyword_df.withColumn(
-                f"contains_{keyword.lower().replace(' ', '_')}", 
-                when(upper(col("description")).contains(keyword.upper()), 1).otherwise(0)
-            )
-        
-        # Keyword-Statistiken
-        keyword_columns = [f"contains_{keyword.lower().replace(' ', '_')}" for keyword in tech_keywords]
-        keyword_stats = keyword_df.select(*keyword_columns).agg(*[sum(col(c)).alias(c) for c in keyword_columns])
-        
-        print("Technology Keyword Analysis:")
-        keyword_stats.show()
-        
-        # Forschungsbereich-Klassifikation
-        research_classification = keyword_df.withColumn(
-            "research_area",
-            when(col("contains_ai") + col("contains_machine_learning") + col("contains_neural") + col("contains_deep_learning") > 0, "AI/ML")
-            .when(col("contains_quantum") > 0, "Quantum Computing")
-            .when(col("contains_blockchain") > 0, "Blockchain")
-            .when(col("contains_robotics") > 0, "Robotics")
-            .when(col("contains_iot") > 0, "IoT")
-            .when(col("contains_cloud") > 0, "Cloud Computing")
-            .otherwise("Other")
-        )
-        
-        # Verteilung der Forschungsbereiche
-        area_distribution = research_classification.groupBy("research_area").count()
-        print("Research Area Distribution:")
-        area_distribution.show()
-        
-        # Ergebnisse speichern
-        research_classification.coalesce(1).write.mode("overwrite").parquet(f"{PROCESSED_PATH}/research_activities_classified")
-        area_distribution.coalesce(1).write.mode("overwrite").parquet(f"{PROCESSED_PATH}/research_area_distribution")
-        
-        return research_df, research_classification
-
-    def create_combined_analysis():
-        """Kombinierte Analyse beider Datasets"""
-        
-        print("Creating combined analysis...")
-        
-        # Beide Datasets laden
-        project_df = load_avro_json_data(f"{DATASETS_PATH}/project_tasks/avro_dataset1_project_tasks.json")
-        research_df = load_avro_json_data(f"{DATASETS_PATH}/research_activities/avro_dataset2_research_activities.json")
-        
-        # Dataset-Type hinzufügen
-        project_df = project_df.withColumn("dataset_type", lit("project"))
-        research_df = research_df.withColumn("dataset_type", lit("research"))
-        
-        # Kombinieren
-        combined_df = project_df.unionByName(research_df)
-        
-        # Gesamtstatistiken
-        total_stats = combined_df.groupBy("dataset_type") \
-            .agg(
-                count("*").alias("total_records"),
-                sum(when(col("completed") == True, 1).otherwise(0)).alias("completed_count"),
-                countDistinct("user_id").alias("unique_users")
-            )
-        
-        print("Combined Dataset Statistics:")
-        total_stats.show()
-        
-        # Cross-dataset User Analysis
-        user_cross_analysis = combined_df.groupBy("user_id", "dataset_type").count() \
-            .groupBy("user_id").pivot("dataset_type").sum("count").fillna(0)
-        
-        print("Users across datasets:")
-        user_cross_analysis.show()
-        
-        # Speichern
-        combined_df.coalesce(1).write.mode("overwrite").parquet(f"{PROCESSED_PATH}/combined_tasks_research")
-        total_stats.coalesce(1).write.mode("overwrite").parquet(f"{PROCESSED_PATH}/combined_statistics")
-        
-        return combined_df
-
-    # Hauptausführung
-    if __name__ == "__main__":
-        print("Starting Spark data processing job...")
-        
-        try:
-            # Einzelne Analysen durchführen
-            project_df, user_stats, text_analysis = process_project_tasks()
-            research_df, research_classified = process_research_activities()
-            
-            # Kombinierte Analyse
-            combined_df = create_combined_analysis()
-            
-            print("Data processing completed successfully!")
-            print(f"Results saved to: {PROCESSED_PATH}")
-            
-        except Exception as e:
-            print(f"Error during processing: {str(e)}")
-            raise
-        
-        finally:
-            spark.stop()
-
+# Hinzufügung zu spark-job.yaml - Spark History Server mit NodePort
 ---
-# Spark Job Deployment
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: spark-task-processing
-  namespace: hadoop-cluster
-spec:
-  template:
-    spec:
-      containers:
-        - name: spark-job
-          image: bitnami/spark:3.4
-          command: ["/bin/bash"]
-          args:
-            - -c
-            - |
-              # Spark Submit mit HDFS Konfiguration
-              /opt/bitnami/spark/bin/spark-submit \
-                --master local[2] \
-                --conf spark.hadoop.fs.defaultFS=hdfs://hadoop-namenode:9000 \
-                --conf spark.sql.warehouse.dir=hdfs://hadoop-namenode:9000/spark-warehouse \
-                --packages org.apache.hadoop:hadoop-client:3.3.4 \
-                /app/process_tasks.py
-          volumeMounts:
-            - name: spark-job-config
-              mountPath: /app
-            - name: hadoop-config
-              mountPath: /opt/hadoop/etc/hadoop
-          resources:
-            requests:
-              memory: "2Gi"
-              cpu: "1000m"
-            limits:
-              memory: "4Gi"
-              cpu: "2000m"
-      volumes:
-        - name: spark-job-config
-          configMap:
-            name: spark-job-config
-            defaultMode: 0755
-        - name: hadoop-config
-          configMap:
-            name: hadoop-config
-      restartPolicy: Never
-  backoffLimit: 3
-
----
-# Service für Spark History Server (optional)
+# Service für Spark History Server (mit NodePort für externen Zugriff)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -306,6 +42,7 @@ spec:
             name: hadoop-config
 
 ---
+# Interner ClusterIP Service
 apiVersion: v1
 kind: Service
 metadata:
@@ -319,3 +56,24 @@ spec:
     - name: web
       port: 18080
       targetPort: 18080
+
+---
+# Externer NodePort Service (für Web-UI Zugriff)
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-history-server-web
+  namespace: hadoop-cluster
+  labels:
+    app: spark-history-server
+    service-type: web-ui
+spec:
+  type: NodePort
+  selector:
+    app: spark-history-server
+  ports:
+    - name: spark-history-web
+      port: 18080
+      targetPort: 18080
+      nodePort: 30093
+      protocol: TCP
