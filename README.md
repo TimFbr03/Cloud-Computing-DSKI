@@ -7,7 +7,7 @@
 3. [Aufgabe 3 - Microservice Infrastructure](#aufgabe-3---microservice-infrastructure)
 4. [Aufgabe 4 - Data Lake / Big Data-Processing](#aufgabe-4---data-lake--big-data-processing)
 5. [Aufgabe 5 - Big Data-Stream Processing](#aufgabe-5---big-data-stream-processing)
-
+5.1 [Aufgabe 5 – Big Data-Stream Processing - Spark und SparkMLlib](#aufgabe-5---big-data-stream-processing---spark)
 ## Aufgabe 1 - Immutable Infrastructure
 
 Ziel der ersten Aufgabe ist es, eine Immutable Infrastructure bereitzustellen.
@@ -1347,6 +1347,298 @@ Results Topic:
 {"sensor": "B", "avg": 52.34}
 {"sensor": "C", "avg": 38.91}
 ```
+## Aufgabe 5 – Big Data-Stream Processing - Spark und SparkMLlib
+Ziel der fünften Aufgabe ist die Einrichtung eines Kafka-Clusters zur Dateningestion und die Implementierung einer skalierbaren Stream-Processing-Pipeline zur Echtzeitverarbeitung. Die Lösung berücksichtigt horizontale Skalierbarkeit (Partitionen/Consumer-Gruppen) und integriert Spark MLlib für Online-Predictions (K-Means) auf dem Stream.
+
+### Architekturüberblick
+
+Die realisierte Lösung besteht aus folgenden Komponenten:
+
+- **Apache Kafka (Confluent Images 7.6.0):** 3-Broker-Cluster + ZooKeeper (Docker Compose)  
+- **Python Producer:** synthetische Events → Kafka Topic `events`  
+- **Apache Spark Structured Streaming (PySpark 3.5.1):** Streaming-Job liest von Kafka, parst JSON, aggregiert fensterbasiert und schreibt **Parquet** (append)  
+- **Spark MLlib (KMeans):** Batch-Training (`train_kmeans.py`), Modell-Persistenz, Online-Scoring im Streaming-Job via `foreachBatch`  
+- **Checkpoints/Output:**  
+  - Checkpoints: `data/checkpoints/agg`  
+  - Aggregations-Output (Parquet): `data/out/agg-parquet`  
+  - ML-Predictions (Parquet): `data/out/ml-preds`
+
+### Technologiewahl und Begründung
+
+** Apache Kafka (Confluent 7.6.0) **
+- Hoher Durchsatz, horizontale Skalierung über Partitionen  
+- Replikation (RF=3) und `min.insync.replicas=2` für Ausfallsicherheit  
+- Gängiger Standard, breite Tool-Integration  
+
+** Spark Structured Streaming (PySpark 3.5.1)**
+- End-to-end Streaming mit State/Checkpoints  
+- Native Kafka-Quelle (`spark-sql-kafka-0-10`)  
+- Direkte MLlib-Integration (Batch-Train + Stream-Score)  
+
+** Spark MLlib (KMeans)**
+- Einfache, robuste Clustering-Baseline  
+- `StringIndexer` + `VectorAssembler` + `KMeans` als Pipeline  
+- Persistentes `PipelineModel` → Wiederverwendung im Stream  
+
+** Producer-Clients **
+- `kafka-python` oder `confluent-kafka` (beide vorbereitet), um Flexibilität bei Latenz/Delivery zu haben.
+
+** Infrastruktur-Deployment (Docker Compose) **
+```yaml
+version: '3.8'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports: ["2181:2181"]
+    networks: [kafka-net]
+
+  broker1:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    ports: ["19092:19092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker1:9092,PLAINTEXT_HOST://localhost:19092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    networks: [kafka-net]
+
+  # broker2: ports ["29092:29092"], BROKER_ID: 2, ADVERTISED_LISTENERS ...:29092
+  # broker3: ports ["39092:39092"], BROKER_ID: 3, ADVERTISED_LISTENERS ...:39092
+
+networks:
+  kafka-net:
+    name: kafka-net
+
+```
+**Topic-Setup**
+Standardmäßig 6 Partitionen, RF=3.
+
+```bash
+./scripts/create_topic.sh events 6 3
+# Intern: docker exec broker1 kafka-topics --create --if-not-exists \
+#   --topic "events" --partitions 6 --replication-factor 3 \
+#   --bootstrap-server broker1:9092
+```
+**Consumer-Gruppen-Monitoring**
+```bash
+./scripts/describe_group.sh spark-streaming-demo
+```
+###Daten-Producer
+
+**Verzeichnis:** `aufgabe5/producer/`
+
+**Varianten**
+- **kafka-python:** `producer.py`  
+- **confluent-kafka:** `producer_confluent.py`  
+
+**Konfiguration**
+- **Bootstrap:** `localhost:19092,29092,39092`  
+- **Topic:** `events`  
+- **Rate:** konfigurierbar über `--rps` (z. B. `20` Nachrichten pro Sekunde)
+
+**Eventschema**
+```JSON
+{
+  "event_id": "<uuid>",
+  "ts": "2025-08-29T12:34:56.789012+00:00",
+  "user_id": "user-42",
+  "event_type": "click",
+  "value": 0.73
+}
+
+```
+**Start (Beispiel mit kafka-python):**
+```bash
+python -m pip install -r producer/requirements.txt
+python producer/producer.py --rps 20
+```
+**Alternative (Confluent):**
+```bash
+python -m pip install -r producer/requirements.confluent.txt
+python producer/producer_confluent.py --rps 20
+```
+
+###ML-Modell (Spark MLlib) – Training
+**Datei:** `aufgabe5/spark/train_kmeans.py`
+
+**Schritte**
+- **Feature-Engineering:**  
+  `StringIndexer(event_type)` → `VectorAssembler([event_type_idx, value])`  
+- **KMeans-Clustering:**  
+  z. B. `k=4` als Pipeline  
+- **Persistenz:**  
+  `data/models/kmeans_event_value`
+Auszug:
+```Python
+from pyspark.ml import Pipeline
+from pyspark.ml.clustering import KMeans
+from pyspark.ml.feature import StringIndexer, VectorAssembler
+
+indexer = StringIndexer(inputCol="event_type", outputCol="event_type_idx", handleInvalid="keep")
+vec = VectorAssembler(inputCols=["event_type_idx", "value"], outputCol="features")
+kmeans = KMeans(k=4, seed=13)
+
+pipeline = Pipeline(stages=[indexer, vec, kmeans])
+model = pipeline.fit(df)                # df: synthetische Trainingsdaten
+model.write().overwrite().save("data/models/kmeans_event_value")
+```
+Train-Run
+```bash
+# Falls kein System-Spark: python -m pip install -r spark/requirements.txt
+./scripts/train_model.sh
+```
+###Streaming-Applikation (Spark Structured Streaming)
+**Datei:** `aufgabe5/spark/stream_app.py` 
+- **Kafka-Quelle** (`spark-sql-kafka-0-10`), Topic `events`
+- **Schema:** `event_id`, `ts`, `user_id`, `event_type`, `value`
+- **Parsing:** JSON → Spalten, `ts` → `timestamp`
+- **Aggregation:** z. B. Fenster (1 min) × `event_type` → `count`, `avg(value)`
+- **Output:** Parquet (append) nach `data/out/agg-parquet`
+- **Checkpointing:** `data/checkpoints/agg`
+- **Online-Scoring:** Laden `PipelineModel` und `foreachBatch` → Predictions in `data/out/ml-preds`
+
+Beispel
+```Python
+spark = (SparkSession.builder
+         .appName("Aufgabe5-Streaming")
+         .getOrCreate())
+
+raw = (spark.readStream.format("kafka")
+       .option("kafka.bootstrap.servers", "localhost:19092,localhost:29092,localhost:39092")
+       .option("subscribe", "events")
+       .option("startingOffsets", "earliest")
+       .load())
+
+# JSON -> Columns
+from pyspark.sql.functions import from_json, col, to_timestamp, window, count, avg
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType
+
+schema = StructType([
+    StructField("event_id", StringType(), True),
+    StructField("ts", StringType(), True),
+    StructField("user_id", StringType(), True),
+    StructField("event_type", StringType(), True),
+    StructField("value", DoubleType(), True),
+])
+
+df = (raw.select(from_json(col("value").cast("string"), schema).alias("j"))
+          .select("j.*")
+          .withColumn("ts", to_timestamp("ts")))
+
+agg = (df.groupBy(window(col("ts"), "1 minute"), col("event_type"))
+         .agg(count("*").alias("cnt"), avg("value").alias("avg_value")))
+
+# Aggregations-Output (Parquet) + Checkpoint
+query_agg = (agg.writeStream
+    .outputMode("append")
+    .format("parquet")
+    .option("path", "data/out/agg-parquet")
+    .option("checkpointLocation", "data/checkpoints/agg")
+    .start())
+
+# Optional: Online-Scoring mit KMeans
+from pyspark.ml import PipelineModel
+model = PipelineModel.load("data/models/kmeans_event_value")
+
+def score_batch(batch_df, batch_id):
+    preds = model.transform(batch_df.select("event_type", "value", "ts", "user_id", "event_id"))
+    (preds.select("ts","event_type","value","user_id","event_id","prediction")
+          .withColumnRenamed("prediction","cluster")
+          .write.mode("append").parquet("data/out/ml-preds"))
+
+(df.writeStream.foreachBatch(score_batch).start())
+
+spark.streams.awaitAnyTermination()
+```
+**Start des Streaming-Jobs**
+```bash
+./scripts/run_spark_local.sh
+# intern u. a.:
+# --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1
+# --conf spark.sql.shuffle.partitions=6
+# --conf spark.default.parallelism=6
+```
+###Skalierungsmechanismen
+**Kafka (horizontale Skalierung)**
+- **Partitionen:** 6 (`Topic: events`) → parallele Consumer-Tasks  
+- **Replikation:** `RF=3` + `min.insync.replicas=2` → Ausfallsicherheit  
+- **Auto-Create Topics:** deaktiviert → Topics werden explizit verwaltet  
+
+**Spark Structured Streaming**
+- **Consumer-Gruppen:** `spark-streaming-demo` (Script vorhanden)  
+- **Parallelität:** über `spark.sql.shuffle.partitions` und `spark.default.parallelism` (hier: 6)  
+- **Skalierung:** durch Erhöhung der Partitionen und/oder Bereitstellung mehrerer Executors/Task-Slots  
+
+**Backpressure & Semantik**
+- **Genau-einmal-Semantik:** Kafka + Structured Streaming + Checkpointing → exakt-einmalige Verarbeitung pro Micro-Batch (idempotenter Sink vorausgesetzt; Parquet-Append durch Checkpoints abgesichert)  
+- **Lag-Kontrolle:** via `describe_group.sh`
+
+###Runbook (End-to-End)
+**1.Cluster starten**
+```bash
+docker compose up -d
+```
+**2.Topic anlegen**
+```bash
+./scripts/create_topic.sh events 6 3
+```
+**3.ML-Modell trainieren**
+```bash
+python -m pip install -r spark/requirements.txt
+./scripts/train_model.sh
+```
+**4.Streaming-Job starten**
+```bash
+./scripts/run_spark_local.sh
+```
+**5.Producer starten**
+```bash
+python -m pip install -r producer/requirements.txt
+python producer/producer.py --rps 20
+# alternativ: confluent-kafka Client siehe oben
+```
+**6.Ergebnisse prüfen**
+```bash
+ls -lah data/out/agg-parquet
+ls -lah data/out/ml-preds
+./scripts/describe_group.sh spark-streaming-demo
+```
+###Versionierung und Verzeichnisstruktur
+- **Images**: `confluentinc/cp-zookeeper:7.6.0`, `confluentinc/cp-kafka:7.6.0`
+- **PySpark:** `pyspark==3.5.1`
+- **Kafka-Producer:** `kafka-python==2.0.2` bzw. `confluent-kafka==2.6.0`
+
+**Struktur(Top-Level)**
+```
+aufgabe5/
+├── docker-compose.yml
+├── producer/                # Producer (kafka-python / confluent-kafka)
+├── scripts/                 # Topic/Group/Train/Run-Spark
+├── spark/                   # Streaming-App + Training (MLlib)
+└── data/
+    ├── checkpoints/         # Spark Checkpoints
+    └── out/
+        ├── agg-parquet/     # Aggregations-Output
+        └── ml-preds/        # Online-Predictions (KMeans)
+```
+###Zusammenfassung und Bewertung
+- **Kafka-Cluster** (3 Broker + ZooKeeper) mit RF=3, P=6, Auto-Create Topics aus → kontrollierte Skalierung
+- **Structured Streaming** (Spark 3.5.1): JSON-Parsing, fensterbasierte Aggregation → Parquet (append) + Checkpointing
+- **MLlib-Integration:** KMeans-Pipeline (Indexing/Vectorizing) → Modellpersistenz, Online-Scoring via `foreachBatch`
+- **Skalierbarkeit:** Partitionen/Consumer-Gruppen + Spark-Parallelism (6)
+- **Monitoring:** Consumer-Lag & Partitions via Scripts
+  
+Die Lösung ist modular, skalierbar und erweiterbar. Sie erfüllt die Aufgabenstellung (Kafka-Cluster, Stream-Processing, horizontale Skalierung) und zeigt zusätzlich die Integration von Spark MLlib zur Echtzeit-Analyse.
+
 
 ## Anhang - Github Actions
 
