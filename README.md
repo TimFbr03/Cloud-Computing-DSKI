@@ -1365,22 +1365,22 @@ Die realisierte Lösung besteht aus folgenden Komponenten:
 
 ### Technologiewahl und Begründung
 
-** Apache Kafka (Confluent 7.6.0) **
+**Apache Kafka (Confluent 7.6.0)**
 - Hoher Durchsatz, horizontale Skalierung über Partitionen  
 - Replikation (RF=3) und `min.insync.replicas=2` für Ausfallsicherheit  
 - Gängiger Standard, breite Tool-Integration  
 
-** Spark Structured Streaming (PySpark 3.5.1)**
+**Spark Structured Streaming (PySpark 3.5.1)**
 - End-to-end Streaming mit State/Checkpoints  
 - Native Kafka-Quelle (`spark-sql-kafka-0-10`)  
 - Direkte MLlib-Integration (Batch-Train + Stream-Score)  
 
-** Spark MLlib (KMeans)**
+**Spark MLlib (KMeans)**
 - Einfache, robuste Clustering-Baseline  
 - `StringIndexer` + `VectorAssembler` + `KMeans` als Pipeline  
 - Persistentes `PipelineModel` → Wiederverwendung im Stream  
 
-** Producer-Clients **
+**Producer-Clients**
 - `kafka-python` oder `confluent-kafka` (beide vorbereitet), um Flexibilität bei Latenz/Delivery zu haben.
 
 **Infrastruktur-Deployment (Docker Compose)**
@@ -1612,7 +1612,7 @@ ls -lah data/out/agg-parquet
 ls -lah data/out/ml-preds
 ./scripts/describe_group.sh spark-streaming-demo
 ```
-###Versionierung und Verzeichnisstruktur
+### Versionierung und Verzeichnisstruktur
 - **Images**: `confluentinc/cp-zookeeper:7.6.0`, `confluentinc/cp-kafka:7.6.0`
 - **PySpark:** `pyspark==3.5.1`
 - **Kafka-Producer:** `kafka-python==2.0.2` bzw. `confluent-kafka==2.6.0`
