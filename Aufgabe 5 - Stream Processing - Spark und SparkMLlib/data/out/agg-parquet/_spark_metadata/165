@@ -1,0 +1,5 @@
+v1
+{"path":"file:///Users/fabianjendrzej/Downloads/aufgabe5/data/out/agg-parquet/part-00000-c57f1357-6ed3-4f35-aaba-87eec7bd11e9-c000.snappy.parquet","size":672,"isDir":false,"modificationTime":1756402862662,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///Users/fabianjendrzej/Downloads/aufgabe5/data/out/agg-parquet/part-00002-c1f9aec9-e2bd-4636-9034-279fcbc90a2b-c000.snappy.parquet","size":1619,"isDir":false,"modificationTime":1756402862902,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///Users/fabianjendrzej/Downloads/aufgabe5/data/out/agg-parquet/part-00003-83e5f7fa-50cb-4e39-8f15-d545acdfc4b5-c000.snappy.parquet","size":1597,"isDir":false,"modificationTime":1756402862902,"blockReplication":1,"blockSize":33554432,"action":"add"}
+{"path":"file:///Users/fabianjendrzej/Downloads/aufgabe5/data/out/agg-parquet/part-00005-737c955d-9191-4ad7-8c74-b5a9f2e7fb2b-c000.snappy.parquet","size":1590,"isDir":false,"modificationTime":1756402862902,"blockReplication":1,"blockSize":33554432,"action":"add"}
