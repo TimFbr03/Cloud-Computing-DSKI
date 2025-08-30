@@ -37,7 +37,7 @@ provider "openstack" {
 resource "openstack_compute_instance_v2" "web_server" {
   name = "tfa-cloud-comp-${timestamp()}"
   image_id = "c57c2aef-f74a-4418-94ca-d3fb169162bf"
-  flavor_name = "cb1.medium"
+  flavor_name = "mb1.large"
   key_pair = "tfa_pub_key"
 
     network {

@@ -270,8 +270,8 @@ Die Container im GHCR sind durch Tags versioniert.
 Das Playbook verwendet die Variable `container_version`, welche bei dem Deployment angegeben wird. Standartmäßig wird das Image mit dem Tag `:latest` verwendet.
 
 ```yaml
-ghcr.io/timfbr03/cloud-computing-dski:v1
-ghcr.io/timfbr03/cloud-computing-dski:v2
+ghcr.io/timfbr03/cloud-computing-dski:v1.0.0
+ghcr.io/timfbr03/cloud-computing-dski:v1.1.0
 ghcr.io/timfbr03/cloud-computing-dski:latest
 ```
 
@@ -282,6 +282,8 @@ Dies ermöglicht:
 - **Rollback:** Wechsel zurück zu einer älteren Version (z. B. v1), falls Fehler auftreten
 
 ### Infrastruktur-Versionierung & Rollback
+
+
 
 ## Aufgabe 3 - Microservice Infrastructure
 
