@@ -1,3 +1,4 @@
+# datanode.yaml - Fixed für lokalen Speicher
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -5,7 +6,7 @@ metadata:
   namespace: hadoop-cluster
 spec:
   serviceName: hadoop-datanode
-  replicas: 2
+  replicas: 2  # Reduziert von 3 auf 2
   selector:
     matchLabels:
       app: hadoop-datanode
@@ -21,6 +22,8 @@ spec:
           volumeMounts:
             - name: datanode-data
               mountPath: /hadoop/dfs/data
+          securityContext:
+            runAsUser: 0
       containers:
         - name: datanode
           image: apache/hadoop:3
@@ -28,16 +31,21 @@ spec:
           args:
             - -c
             - |
+              # Wait for namenode to be ready
               echo "Waiting for NameNode..."
-              until nc -z hadoop-namenode.hadoop-cluster.svc.cluster.local 9000; do
+              until nc -z hadoop-namenode 9000; do
                 echo "NameNode not ready, waiting..."
                 sleep 10
               done
-              echo "NameNode ready, starting DataNode"
+              echo "NameNode is ready, starting DataNode"
+              
+              # Start datanode
               /opt/hadoop/bin/hdfs datanode
           env:
             - name: HDFS_CONF_dfs_datanode_data_dir
               value: "/hadoop/dfs/data"
+            - name: JAVA_HOME
+              value: "/opt/java/openjdk"
           ports:
             - containerPort: 9864
               name: http
@@ -59,14 +67,17 @@ spec:
               cpu: "1000m"
           readinessProbe:
             httpGet:
-              path: /jmx
+              path: /
               port: 9864
             initialDelaySeconds: 90
             periodSeconds: 15
             timeoutSeconds: 10
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
           livenessProbe:
             httpGet:
-              path: /jmx
+              path: /
               port: 9864
             initialDelaySeconds: 180
             periodSeconds: 30
@@ -77,7 +88,7 @@ spec:
             name: hadoop-config
         - name: datanode-data
           emptyDir:
-            sizeLimit: "3Gi"
+            sizeLimit: "3Gi"  # Begrenzt auf 3GB pro DataNode
 
 ---
 apiVersion: v1
@@ -86,6 +97,7 @@ metadata:
   name: hadoop-datanode
   namespace: hadoop-cluster
 spec:
+  type: ClusterIP
   clusterIP: None
   selector:
     app: hadoop-datanode

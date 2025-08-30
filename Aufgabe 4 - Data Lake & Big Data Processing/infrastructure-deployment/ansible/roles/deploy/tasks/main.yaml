@@ -366,20 +366,51 @@
   when: "'k3s_server' in group_names"
 
 # ==========================
-# NEU: Simplified Data Ingestion (FIXED)
+# Copy real datasets from local data directory
 # ==========================
-- name: Create simple data ingestion job manifest
+- name: Copy real project tasks dataset
+  copy:
+    src: "{{ playbook_dir }}/../../data/avro_dataset1_project_tasks.json"
+    dest: /tmp/sample-data/avro_dataset1_project_tasks.json
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+- name: Copy real research activities dataset  
+  copy:
+    src: "{{ playbook_dir }}/../../data/avro_dataset2_research_activities.json"
+    dest: /tmp/sample-data/avro_dataset2_research_activities.json
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+- name: Copy real schema file
+  copy:
+    src: "{{ playbook_dir }}/../../data/avro_schema_tasks.json"
+    dest: /tmp/sample-data/avro_schema_tasks.json
+    mode: '0644'
+  when: "'k3s_server' in group_names"
+
+# ==========================
+# Enhanced Data Ingestion with Real Data
+# ==========================
+- name: Create enhanced data ingestion job manifest
   copy:
     content: |
       apiVersion: batch/v1
       kind: Job
       metadata:
-        name: data-ingestion
+        name: data-ingestion-enhanced
         namespace: {{ hadoop.namespace }}
       spec:
         template:
           spec:
             restartPolicy: Never
+            volumes:
+              - name: real-data
+                configMap:
+                  name: real-datasets
+              - name: hadoop-config
+                configMap:
+                  name: hadoop-config
             containers:
               - name: data-ingestion
                 image: apache/hadoop:3
@@ -387,32 +418,63 @@
                 args:
                   - |
                     set -e
-                    echo "Starting simplified data ingestion..."
+                    echo "Starting enhanced data ingestion with real datasets..."
                     
-                    # Create test data directly in container
-                    cat > /tmp/test_data.json << 'EOF'
-                    {"title": "Sample Task", "description": "Test data for Hadoop", "completed": false, "user_id": "test_user"}
-                    EOF
-                    
-                    echo "Created test data file"
-                    ls -la /tmp/test_data.json
+                    # List available files
+                    echo "Available data files:"
+                    ls -la /data/
                     
                     # Wait for HDFS to be ready
+                    echo "Waiting for HDFS to be ready..."
                     until /opt/hadoop/bin/hdfs dfsadmin -report > /dev/null 2>&1; do
-                      echo "Waiting for HDFS..."
-                      sleep 10
+                      echo "HDFS not ready, waiting..."
+                      sleep 15
                     done
                     
-                    echo "HDFS is ready, uploading data..."
-                    /opt/hadoop/bin/hdfs dfs -mkdir -p /datalake/datasets/ || true
-                    /opt/hadoop/bin/hdfs dfs -put /tmp/test_data.json /datalake/datasets/ || echo "File might already exist"
+                    echo "HDFS is ready! Creating directory structure..."
                     
-                    echo "Verifying data upload..."
-                    /opt/hadoop/bin/hdfs dfs -ls /datalake/datasets/
+                    # Create HDFS directories
+                    /opt/hadoop/bin/hdfs dfs -mkdir -p /datalake/datasets/project_tasks || true
+                    /opt/hadoop/bin/hdfs dfs -mkdir -p /datalake/datasets/research_activities || true
+                    /opt/hadoop/bin/hdfs dfs -mkdir -p /datalake/schemas || true
+                    /opt/hadoop/bin/hdfs dfs -mkdir -p /datalake/raw || true
+                    /opt/hadoop/bin/hdfs dfs -mkdir -p /datalake/processed || true
                     
-                    echo "Data ingestion completed successfully!"
-                    sleep 5
+                    echo "Uploading real datasets to HDFS..."
+                    
+                    # Upload project tasks dataset
+                    echo "Uploading project tasks..."
+                    /opt/hadoop/bin/hdfs dfs -put /data/avro_dataset1_project_tasks.json /datalake/datasets/project_tasks/ || echo "Project tasks file might already exist"
+                    
+                    # Upload research activities dataset
+                    echo "Uploading research activities..."
+                    /opt/hadoop/bin/hdfs dfs -put /data/avro_dataset2_research_activities.json /datalake/datasets/research_activities/ || echo "Research activities file might already exist"
+                    
+                    # Upload schema
+                    echo "Uploading schema..."
+                    /opt/hadoop/bin/hdfs dfs -put /data/avro_schema_tasks.json /datalake/schemas/ || echo "Schema file might already exist"
+                    
+                    echo "Verifying uploaded data..."
+                    echo "=== Project Tasks Directory ==="
+                    /opt/hadoop/bin/hdfs dfs -ls /datalake/datasets/project_tasks/
+                    
+                    echo "=== Research Activities Directory ==="
+                    /opt/hadoop/bin/hdfs dfs -ls /datalake/datasets/research_activities/
+                    
+                    echo "=== Schemas Directory ==="
+                    /opt/hadoop/bin/hdfs dfs -ls /datalake/schemas/
+                    
+                    echo "=== Complete Data Lake Structure ==="
+                    /opt/hadoop/bin/hdfs dfs -ls -R /datalake/
+                    
+                    echo "=== HDFS Cluster Report ==="
+                    /opt/hadoop/bin/hdfs dfsadmin -report
+                    
+                    echo "Enhanced data ingestion completed successfully!"
+                    sleep 10
                 volumeMounts:
+                  - name: real-data
+                    mountPath: /data
                   - name: hadoop-config
                     mountPath: /opt/hadoop/etc/hadoop
                 resources:
@@ -422,38 +484,76 @@
                   limits:
                     memory: "1Gi"
                     cpu: "500m"
-            volumes:
-              - name: hadoop-config
-                configMap:
-                  name: hadoop-config
-        backoffLimit: 2
-    dest: /tmp/data-ingestion-job.yaml
+        backoffLimit: 3
+    dest: /tmp/enhanced-data-ingestion-job.yaml
     mode: '0644'
   when: "'k3s_server' in group_names"
 
-- name: Run simplified data ingestion job
+- name: Create ConfigMap with real datasets
   shell: |
-    kubectl delete job data-ingestion -n {{ hadoop.namespace }} --ignore-not-found=true
+    kubectl create configmap real-datasets \
+      --from-file=/tmp/sample-data/ \
+      -n {{ hadoop.namespace }} \
+      --dry-run=client -o yaml | kubectl apply -f -
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+
+- name: Run enhanced data ingestion job
+  shell: |
+    kubectl delete job data-ingestion-enhanced -n {{ hadoop.namespace }} --ignore-not-found=true
     sleep 5
-    kubectl apply -f /tmp/data-ingestion-job.yaml
-    kubectl wait --for=condition=complete job/data-ingestion -n {{ hadoop.namespace }} --timeout=300s || true
+    kubectl apply -f /tmp/enhanced-data-ingestion-job.yaml
+    kubectl wait --for=condition=complete job/data-ingestion-enhanced -n {{ hadoop.namespace }} --timeout=600s || true
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
-- name: Show data ingestion logs
+- name: Show enhanced data ingestion logs
   shell: |
-    kubectl logs job/data-ingestion -n {{ hadoop.namespace }}
+    echo "=== Data Ingestion Job Logs ==="
+    kubectl logs job/data-ingestion-enhanced -n {{ hadoop.namespace }} || echo "No logs available yet"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
 
-- name: Verify data ingestion
+# ==========================
+# Debug and Status Check Tasks
+# ==========================
+- name: Check all Hadoop pods status
   shell: |
-    kubectl exec -n {{ hadoop.namespace }} hadoop-namenode-0 -- /opt/hadoop/bin/hdfs dfs -ls -R /datalake/ || echo "Could not list datasets"
+    echo "=== Hadoop Cluster Status ==="
+    kubectl get pods -n {{ hadoop.namespace }} -o wide
+    echo ""
+    echo "=== Hadoop Services ==="
+    kubectl get svc -n {{ hadoop.namespace }}
+    echo ""
+    echo "=== NodePort Services ==="
+    kubectl get svc -n {{ hadoop.namespace }} -o wide | grep NodePort
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: "'k3s_server' in group_names"
+
+- name: Test NameNode connectivity
+  shell: |
+    echo "Testing NameNode Web UI connectivity..."
+    kubectl exec -n {{ hadoop.namespace }} hadoop-namenode-0 -- curl -f http://localhost:9870/ || echo "NameNode Web UI not responding"
+    
+    echo "Testing NameNode RPC connectivity..."
+    kubectl exec -n {{ hadoop.namespace }} hadoop-namenode-0 -- nc -z localhost 9000 && echo "NameNode RPC OK" || echo "NameNode RPC not responding"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+  ignore_errors: yes
+
+- name: Check DataNode registration with NameNode
+  shell: |
+    echo "Checking DataNode registration..."
+    kubectl exec -n {{ hadoop.namespace }} hadoop-namenode-0 -- /opt/hadoop/bin/hdfs dfsadmin -report || echo "Could not get DataNode report"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: "'k3s_server' in group_names"
+  ignore_errors: yes
 
 # ==========================
 # Updated Deployment Summary (FIXED)

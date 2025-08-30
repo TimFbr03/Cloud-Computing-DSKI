@@ -1,3 +1,4 @@
+# namenode.yaml - Fixed für lokalen Speicher (ohne JAVA_HOME Probleme)
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -17,47 +18,89 @@ spec:
       initContainers:
         - name: namenode-format
           image: apache/hadoop:3
-          command: ["/bin/sh", "-c"]
+          command: ["/bin/bash", "-c"]
           args:
-            - mkdir -p /hadoop/dfs/name \
-              && echo "Checking if NameNode is formatted..." \
-              && test -f /hadoop/dfs/name/current/VERSION \
-              || (echo "Formatting NameNode..." && /opt/hadoop/bin/hdfs namenode -format -force)
+            - |
+              set -e
+              mkdir -p /hadoop/dfs/name
+              chown -R hadoop:hadoop /hadoop/dfs/name
+              echo "Checking if NameNode is formatted..."
+              if [ ! -f /hadoop/dfs/name/current/VERSION ]; then
+                echo "Formatting NameNode..."
+                /opt/hadoop/bin/hdfs namenode -format -force -clusterId hadoop-cluster
+                echo "NameNode formatted successfully"
+              else
+                echo "NameNode already formatted"
+              fi
           volumeMounts:
             - name: namenode-data
               mountPath: /hadoop/dfs/name
             - name: hadoop-config
               mountPath: /opt/hadoop/etc/hadoop
-      containers:
-        - name: namenode
-          image: apache/hadoop:3
-          command: ["/opt/hadoop/bin/hdfs"]
-          args: ["namenode"]
-          env:
-            - name: CLUSTER_NAME
-              value: "hadoop-cluster"
-          ports:
-            - containerPort: 9000
-            - containerPort: 9870
-          volumeMounts:
-            - name: hadoop-config
-              mountPath: /opt/hadoop/etc/hadoop
-            - name: namenode-data
-              mountPath: /hadoop/dfs/name
-      volumes:
-        - name: hadoop-config
-          configMap:
-            name: hadoop-config
-
-  volumeClaimTemplates:
-    - metadata:
-        name: namenode-data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: hadoop-storage
+          securityContext:
+            runAsUser: 0  # Run as root for formatting
+    containers:
+      - name: namenode
+        image: apache/hadoop:3
+        command: ["/opt/hadoop/bin/hdfs"]
+        args: ["namenode", "-foreground"]
+        env:
+          - name: CLUSTER_NAME
+            value: "hadoop-cluster"
+          - name: HDFS_CONF_dfs_namenode_name_dir
+            value: "/hadoop/dfs/name"
+        volumeMounts:
+          - name: hadoop-config
+            mountPath: /opt/hadoop/etc/hadoop
+          - name: namenode-data
+            mountPath: /hadoop/dfs/name
+        securityContext:
+          runAsUser: 0   # testweise root für simplen Start
+    
+        ports:
+          - containerPort: 9000
+            name: rpc
+          - containerPort: 9870
+            name: http
+        volumeMounts:
+          - name: hadoop-config
+            mountPath: /opt/hadoop/etc/hadoop
+          - name: namenode-data
+            mountPath: /hadoop/dfs/name
         resources:
           requests:
-            storage: 10Gi
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9870
+          initialDelaySeconds: 90
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9870
+          initialDelaySeconds: 180
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+        securityContext:
+          runAsUser: 1000  # Run as hadoop user
+          runAsGroup: 1000
+    volumes:
+      - name: hadoop-config
+        configMap:
+          name: hadoop-config
+      - name: namenode-data
+        emptyDir: 
+          sizeLimit: "2Gi"
+
 ---
 apiVersion: v1
 kind: Service
@@ -65,7 +108,7 @@ metadata:
   name: hadoop-namenode
   namespace: hadoop-cluster
 spec:
-  clusterIP: None   # Headless Service für StatefulSet
+  clusterIP: None
   selector:
     app: hadoop-namenode
   ports:
@@ -75,6 +118,7 @@ spec:
     - name: http
       port: 9870
       targetPort: 9870
+
 ---
 apiVersion: v1
 kind: Service
