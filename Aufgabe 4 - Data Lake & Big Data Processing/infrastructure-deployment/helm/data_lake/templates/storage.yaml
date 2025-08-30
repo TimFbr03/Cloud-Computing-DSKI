@@ -1,7 +1,43 @@
+# storage.yaml - Vereinfacht ohne PersistentVolumes
+# Da wir emptyDir verwenden, brauchen wir keine StorageClass mehr
+
+# Optional: Nur falls du später doch PVs brauchst
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: hadoop-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
 provisioner: rancher.io/local-path
 volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Retain
+reclaimPolicy: Delete  # Geändert von Retain auf Delete
+allowVolumeExpansion: false
+
+---
+# Konfiguration für emptyDir Limits (optional)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hadoop-storage-config
+  namespace: hadoop-cluster
+data:
+  README.md: |
+    # Hadoop Storage Configuration
+    
+    ## Current Setup
+    - Using emptyDir volumes for ephemeral storage
+    - NameNode: 2GB limit
+    - DataNode: 3GB limit per node
+    - Total cluster storage: ~6GB (2 DataNodes × 3GB)
+    
+    ## Limitations
+    - Data is NOT persistent across pod restarts
+    - Suitable for development/testing only
+    - For production, use proper PersistentVolumes
+    
+    ## Monitoring
+    Check disk usage with:
+    ```
+    kubectl exec -n hadoop-cluster hadoop-namenode-0 -- df -h /hadoop/dfs/name
+    kubectl exec -n hadoop-cluster hadoop-datanode-0 -- df -h /hadoop/dfs/data
+    ```

@@ -1,4 +1,3 @@
-# datanode.yaml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -18,7 +17,7 @@ spec:
       initContainers:
         - name: fix-permissions
           image: busybox
-          command: ['sh', '-c', 'chown -R 1000:1000 /hadoop/dfs/data']
+          command: ['sh', '-c', 'mkdir -p /hadoop/dfs/data && chown -R 1000:1000 /hadoop/dfs/data']
           volumeMounts:
             - name: datanode-data
               mountPath: /hadoop/dfs/data
@@ -29,13 +28,12 @@ spec:
           args:
             - -c
             - |
-              # Wait for namenode to be ready
-              until nc -z hadoop-namenode 9000; do
-                echo "Waiting for namenode..."
-                sleep 5
+              echo "Waiting for NameNode..."
+              until nc -z hadoop-namenode.hadoop-cluster.svc.cluster.local 9000; do
+                echo "NameNode not ready, waiting..."
+                sleep 10
               done
-              
-              # Start datanode
+              echo "NameNode ready, starting DataNode"
               /opt/hadoop/bin/hdfs datanode
           env:
             - name: HDFS_CONF_dfs_datanode_data_dir
@@ -61,31 +59,25 @@ spec:
               cpu: "1000m"
           readinessProbe:
             httpGet:
-              path: /
+              path: /jmx
               port: 9864
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            timeoutSeconds: 5
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            timeoutSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
+              path: /jmx
               port: 9864
-            initialDelaySeconds: 120
+            initialDelaySeconds: 180
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 10
       volumes:
         - name: hadoop-config
           configMap:
             name: hadoop-config
-  volumeClaimTemplates:
-    - metadata:
-        name: datanode-data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: hadoop-storage
-        resources:
-          requests:
-            storage: 5Gi
+        - name: datanode-data
+          emptyDir:
+            sizeLimit: "3Gi"
 
 ---
 apiVersion: v1
@@ -94,7 +86,6 @@ metadata:
   name: hadoop-datanode
   namespace: hadoop-cluster
 spec:
-  type: ClusterIP
   clusterIP: None
   selector:
     app: hadoop-datanode
