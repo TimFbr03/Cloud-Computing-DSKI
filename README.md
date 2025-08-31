@@ -293,7 +293,15 @@ Dies ermöglicht:
 - **Upgrade:** Wechsel von v1 → v2 durch erneutes Playbook-Run.
 - **Rollback:** Wechsel zurück zu einer älteren Version (z. B. v1), falls Fehler auftreten
 
+Bsp.
+```
+terraform apply -var="container_version=v1.1.0"
+```
+
 ### Infrastruktur-Versionierung & Rollback
+
+Durch den Befehl `git checkout` können ältere Versionen der Infrastruktur aus dem Github Repository abgerufen werden.  
+Es ist zu beachten, dass die Container unabhängig von dem Repository sind und bei Version-Rollbacks ensprechend definiert werden müssen.
 
 [Screencast - Aufgabe 2](https://github.com/TimFbr03/Cloud-Computing-DSKI/tree/main/Screencasts)
 
