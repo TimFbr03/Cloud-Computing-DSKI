@@ -172,7 +172,7 @@ Terraform erkennt die Abweichungen und führt ein Immutable Update durch:
 - Eine neue Instanz wird mit den geänderten Parametern erstellt.
   So wird sichergestellt, dass es keine inkonsistenten Zwischenzustände gibt.
 
-[Screencast - Aufgabe 1]()
+[Screencast - Aufgabe 1](https://github.com/TimFbr03/Cloud-Computing-DSKI/tree/main/Screencasts)
 
 #### Zusammenfassung
 
@@ -295,7 +295,7 @@ Dies ermöglicht:
 
 ### Infrastruktur-Versionierung & Rollback
 
-
+[Screencast - Aufgabe 2](https://github.com/TimFbr03/Cloud-Computing-DSKI/tree/main/Screencasts)
 
 ## Aufgabe 3 - Microservice Infrastructure
 
@@ -739,6 +739,8 @@ http://<node-ip>:30090
 - **Externe Erreichbarkeit:** Nginx Ingress Controller
 - **Monitoring:** Prometheus + Grafana Stack
 - **Automation:** Terraform + Ansible Integration
+
+[Screencast - Aufgabe 3](https://github.com/TimFbr03/Cloud-Computing-DSKI/tree/main/Screencasts)
 
 ## Aufgabe 4 - Data Lake / Big Data-Processing
 
