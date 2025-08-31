@@ -43,6 +43,10 @@ resource "openstack_compute_instance_v2" "web_server" {
     network {
         name = "DHBW"
     }
+    
+    lifecycle {
+      create_before_destroy = true
+  }
 }
 
 
@@ -62,7 +66,7 @@ resource "null_resource" "ansible_provisioner" {
   ]
 
   provisioner "local-exec" {
-    command = "sleep 30 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml -e \"container_version=${var.container_version}\""
+    command = "sleep 60 && ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ../ansible/inventory/inventory.ini ../ansible/deploy.yaml -e \"container_version=${var.container_version}\""
   }
 
   triggers = {

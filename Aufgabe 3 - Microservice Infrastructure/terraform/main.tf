@@ -29,12 +29,6 @@ resource "random_id" "cluster_id" {
   byte_length = 4
 }
 
-# Key pair (optional if not managed here)
-# resource "openstack_compute_keypair_v2" "keypair" {
-#   name       = "tfa_pub_key"
-#   public_key = var.os_pub_key
-# }
-
 # Kubernetes server
 resource "openstack_compute_instance_v2" "k3s_server" {
   name = "k3s-${random_id.cluster_id.hex}-server"

@@ -6,8 +6,15 @@
 2. [Aufgabe 2 - Configuration Management und Deployment](#aufgabe-2---configuration-management-und-deployment)
 3. [Aufgabe 3 - Microservice Infrastructure](#aufgabe-3---microservice-infrastructure)
 4. [Aufgabe 4 - Data Lake / Big Data-Processing](#aufgabe-4---data-lake--big-data-processing)
-5. [Aufgabe 5 - Big Data-Stream Processing](#aufgabe-5---big-data-stream-processing)
+5. [Aufgabe 5 - Big Data-Stream Processing](#aufgabe-5---big-data-stream-processing)  
 5.1 [Aufgabe 5 – Big Data-Stream Processing - Spark und SparkMLlib](#aufgabe-5--big-data-stream-processing---spark-und-sparkmllib)
+
+## Mitwirkende
+- 2061137
+- 1981241
+- 8760385
+- 3186543
+- 6372963
 ## Aufgabe 1 - Immutable Infrastructure
 
 Ziel der ersten Aufgabe ist es, eine Immutable Infrastructure bereitzustellen.
@@ -85,7 +92,7 @@ resource "openstack_compute_instance_v2" "web_server" {
 - Es dürfen keine manuellen Änderungen an der VM vorgenommen werden.
 - Änderungen erfolgen ausschließlich über **Terraform**.
 - Terraform sorgt automatisch dafür, das die Infrastruktur nicht verändert, sondern ersetzt wird.
-  - **Replace** (Destroy + Create)
+  - `terraform taint openstack_compute_instance_v2.web_server`
 
 #### **Deployment einer OpenStack Instanz**
 
@@ -116,6 +123,11 @@ terraform plan
 - Dies ist jedoch eine reine Vorschau, und ändert nichts an der Infrastruktur.
 
 **3. Ausführen des Terraform Scripts**  
+Dass die Infrastruktur Immutable ausgeführt wird, muss die Instanz zum Redeployment markiert werden:
+```shell
+terraform taint <instance>
+```
+
 Mit folgendem Befehl erstellt Terraform einen Execution Plan und führt diesen aus:
 
 ```shell
@@ -160,7 +172,7 @@ Terraform erkennt die Abweichungen und führt ein Immutable Update durch:
 - Eine neue Instanz wird mit den geänderten Parametern erstellt.
   So wird sichergestellt, dass es keine inkonsistenten Zwischenzustände gibt.
 
-_Screencast einfügen_
+[Screencast - Aufgabe 1]()
 
 #### Zusammenfassung
 

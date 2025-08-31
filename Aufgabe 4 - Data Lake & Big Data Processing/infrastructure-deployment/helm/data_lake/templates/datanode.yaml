@@ -1,12 +1,11 @@
-# datanode.yaml - Fixed für lokalen Speicher
+# datanode.yaml - Super vereinfacht ohne Custom Config
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: hadoop-datanode
   namespace: hadoop-cluster
 spec:
-  serviceName: hadoop-datanode
-  replicas: 2  # Reduziert von 3 auf 2
+  replicas: 2
   selector:
     matchLabels:
       app: hadoop-datanode
@@ -15,49 +14,26 @@ spec:
       labels:
         app: hadoop-datanode
     spec:
-      initContainers:
-        - name: fix-permissions
-          image: busybox
-          command: ['sh', '-c', 'mkdir -p /hadoop/dfs/data && chown -R 1000:1000 /hadoop/dfs/data']
-          volumeMounts:
-            - name: datanode-data
-              mountPath: /hadoop/dfs/data
-          securityContext:
-            runAsUser: 0
       containers:
         - name: datanode
           image: apache/hadoop:3
-          command: ["/bin/bash"]
+          command: ["/bin/bash", "-c"]
           args:
-            - -c
             - |
-              # Wait for namenode to be ready
+              # Wait for namenode
               echo "Waiting for NameNode..."
               until nc -z hadoop-namenode 9000; do
                 echo "NameNode not ready, waiting..."
-                sleep 10
+                sleep 5
               done
-              echo "NameNode is ready, starting DataNode"
               
-              # Start datanode
+              echo "Starting DataNode..."
               /opt/hadoop/bin/hdfs datanode
-          env:
-            - name: HDFS_CONF_dfs_datanode_data_dir
-              value: "/hadoop/dfs/data"
-            - name: JAVA_HOME
-              value: "/opt/java/openjdk"
           ports:
             - containerPort: 9864
               name: http
             - containerPort: 9866
               name: data
-            - containerPort: 9867
-              name: ipc
-          volumeMounts:
-            - name: hadoop-config
-              mountPath: /opt/hadoop/etc/hadoop
-            - name: datanode-data
-              mountPath: /hadoop/dfs/data
           resources:
             requests:
               memory: "1Gi"
@@ -69,26 +45,14 @@ spec:
             httpGet:
               path: /
               port: 9864
-            initialDelaySeconds: 90
-            periodSeconds: 15
-            timeoutSeconds: 10
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
+            initialDelaySeconds: 60
+            periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /
               port: 9864
-            initialDelaySeconds: 180
+            initialDelaySeconds: 120
             periodSeconds: 30
-            timeoutSeconds: 10
-      volumes:
-        - name: hadoop-config
-          configMap:
-            name: hadoop-config
-        - name: datanode-data
-          emptyDir:
-            sizeLimit: "3Gi"  # Begrenzt auf 3GB pro DataNode
 
 ---
 apiVersion: v1
@@ -97,8 +61,6 @@ metadata:
   name: hadoop-datanode
   namespace: hadoop-cluster
 spec:
-  type: ClusterIP
-  clusterIP: None
   selector:
     app: hadoop-datanode
   ports:
@@ -108,6 +70,3 @@ spec:
     - name: data
       port: 9866
       targetPort: 9866
-    - name: ipc
-      port: 9867
-      targetPort: 9867
